@@ -1,12 +1,17 @@
-import { NativeModule, requireNativeModule } from 'expo';
+import { requireNativeModule } from 'expo-modules-core';
+import type { LLMMessage, LLMOptions } from './types';
 
-import { ExpoLlmModuleEvents } from './ExpoLlm.types';
+export type ExpoLlmNativeModule = {
+  prepareModel(options?: { model?: string }): Promise<void>;
+  createSession(options?: { systemPrompt?: string }): Promise<string>;
+  sendMessage(
+    sessionId: string,
+    messages: LLMMessage[],
+    options?: LLMOptions
+  ): Promise<{ reply: string }>;
+};
 
-declare class ExpoLlmModule extends NativeModule<ExpoLlmModuleEvents> {
-  PI: number;
-  hello(): string;
-  setValueAsync(value: string): Promise<void>;
-}
+const NativeModule: ExpoLlmNativeModule =
+  requireNativeModule<ExpoLlmNativeModule>('ExpoLlm'); 
 
-// This call loads the native module object from the JSI.
-export default requireNativeModule<ExpoLlmModule>('ExpoLlm');
+export default NativeModule;

@@ -1,5 +1,19 @@
-// Reexport the native module. On web, it will be resolved to ExpoLlmModule.web.ts
-// and on native platforms to ExpoLlmModule.ts
-export { default } from './ExpoLlmModule';
-export { default as ExpoLlmView } from './ExpoLlmView';
-export * from  './ExpoLlm.types';
+import NativeModule from './ExpoLlmModule';
+export * from './types';
+import type { LLMMessage, LLMOptions } from './types';
+
+export async function prepareModel(options?: { model?: string }) {
+  return NativeModule.prepareModel(options);
+}
+
+export async function createSession(options?: { systemPrompt?: string }) {
+  return NativeModule.createSession(options);
+}
+
+export async function sendMessage(
+  sessionId: string,
+  messages: LLMMessage[],
+  options?: LLMOptions
+) {
+  return NativeModule.sendMessage(sessionId, messages, options);
+}

@@ -1,73 +1,62 @@
-import { useEvent } from 'expo';
-import ExpoLlm, { ExpoLlmView } from 'expo-llm';
-import { Button, SafeAreaView, ScrollView, Text, View } from 'react-native';
-
+// example/App.tsx
+import React, { useState } from 'react';
+import { SafeAreaView, TextInput, Button, Text, View } from 'react-native';
+import { createSession, sendMessage, type LLMMessage } from 'expo-llm';
 export default function App() {
-  const onChangePayload = useEvent(ExpoLlm, 'onChange');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<LLMMessage[]>([]);
+  const [reply, setReply] = useState('');
+
+  const ensureSession = async () => {
+    if (sessionId) return sessionId;
+    const id = await createSession({ systemPrompt: 'You are a mock assistant' });
+    setSessionId(id);
+    return id;
+  };
+
+  const onSend = async () => {
+    if (!input.trim()) return;
+    const id = await ensureSession();
+
+    const newMsg: LLMMessage = { role: 'user', content: input.trim() };
+    const allMessages = [...messages, newMsg];
+
+    setMessages(allMessages);
+    setInput('');
+
+    const res = await sendMessage(id, allMessages, {
+      temperature: 0.7,
+    });
+
+    setReply(res.reply);
+    setMessages([...allMessages, { role: 'assistant', content: res.reply }]);
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.container}>
-        <Text style={styles.header}>Module API Example</Text>
-        <Group name="Constants">
-          <Text>{ExpoLlm.PI}</Text>
-        </Group>
-        <Group name="Functions">
-          <Text>{ExpoLlm.hello()}</Text>
-        </Group>
-        <Group name="Async functions">
-          <Button
-            title="Set value"
-            onPress={async () => {
-              await ExpoLlm.setValueAsync('Hello from JS!');
-            }}
-          />
-        </Group>
-        <Group name="Events">
-          <Text>{onChangePayload?.value}</Text>
-        </Group>
-        <Group name="Views">
-          <ExpoLlmView
-            url="https://www.example.com"
-            onLoad={({ nativeEvent: { url } }) => console.log(`Loaded: ${url}`)}
-            style={styles.view}
-          />
-        </Group>
-      </ScrollView>
+    <SafeAreaView style={{ flex: 1, padding: 16 }}>
+      <View style={{ flex: 1 }}>
+        {messages.map((m, idx) => (
+          <Text key={idx}>
+            {m.role}: {m.content}
+          </Text>
+        ))}
+      </View>
+
+      <Text>Son cevap: {reply}</Text>
+
+      <TextInput
+        value={input}
+        onChangeText={setInput}
+        placeholder="Mesaj yaz"
+        style={{
+          borderWidth: 1,
+          padding: 8,
+          marginTop: 8,
+          marginBottom: 8,
+        }}
+      />
+      <Button title="Gönder" onPress={onSend} />
     </SafeAreaView>
   );
 }
-
-function Group(props: { name: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.group}>
-      <Text style={styles.groupHeader}>{props.name}</Text>
-      {props.children}
-    </View>
-  );
-}
-
-const styles = {
-  header: {
-    fontSize: 30,
-    margin: 20,
-  },
-  groupHeader: {
-    fontSize: 20,
-    marginBottom: 20,
-  },
-  group: {
-    margin: 20,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#eee',
-  },
-  view: {
-    flex: 1,
-    height: 200,
-  },
-};
