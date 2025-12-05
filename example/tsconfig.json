@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "expo-llm": ["../src/index"],
+      "expo-llm/*": ["../src/*"]
+    }
+  }
+}
