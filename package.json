@@ -4,6 +4,9 @@
   "description": "Expo AI Kit module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
+  "files": [
+    "build"
+  ],
   "scripts": {
     "build": "expo-module build",
     "clean": "expo-module clean",
@@ -27,7 +30,7 @@
   "bugs": {
     "url": "https://github.com/laraelmas/expo-ai-kit/issues"
   },
-  "author": "laraelmas <laraaelmas@gmail.com> (https://github.com/laraelmas)",
+  "author": "Lara Elmas (https://github.com/laraelmas)",
   "license": "MIT",
   "homepage": "https://github.com/laraelmas/expo-ai-kit#readme",
   "dependencies": {
