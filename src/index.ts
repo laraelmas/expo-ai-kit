@@ -1,4 +1,4 @@
-import NativeModule from './ExpoLlmModule';
+import NativeModule from './ExpoAiKitModule';
 export * from './types';
 import type { LLMMessage, LLMOptions } from './types';
 

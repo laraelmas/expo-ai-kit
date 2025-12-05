@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "expo-llm-example",
-    "slug": "expo-llm-example",
+    "name": "expo-ai-kit-example",
+    "slug": "expo-ai-kit-example",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "expo.modules.llm.example"
+      "bundleIdentifier": "expo.modules.aikit.example"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "expo.modules.llm.example"
+      "package": "expo.modules.aikit.example"
     },
     "web": {
       "favicon": "./assets/favicon.png"

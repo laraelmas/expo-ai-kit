@@ -19,7 +19,7 @@ config.resolver.nodeModulesPaths = [
 ];
 
 config.resolver.extraNodeModules = {
-  'expo-llm': '..',
+  'expo-ai-kit': '..',
 };
 
 config.watchFolders = [path.resolve(__dirname, '..')];

@@ -1,9 +1,9 @@
 import ExpoModulesCore
 import FoundationModels
 
-public class ExpoLlmModule: Module {
+public class ExpoAiKitModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ExpoLlm")
+    Name("ExpoAiKit")
 
     AsyncFunction("prepareModel") { (_: [String: Any]?) async throws in
       if #available(iOS 26.0, *) {
@@ -53,3 +53,4 @@ public class ExpoLlmModule: Module {
 }
   }
 }
+

@@ -1,9 +1,9 @@
 {
   "platforms": ["apple", "android", "web"],
   "apple": {
-    "modules": ["ExpoLlmModule"]
+    "modules": ["ExpoAiKitModule"]
   },
   "android": {
-    "modules": ["expo.modules.llm.ExpoLlmModule"]
+    "modules": ["expo.modules.aikit.ExpoAiKitModule"]
   }
 }

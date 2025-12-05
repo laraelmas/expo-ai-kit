@@ -16,7 +16,7 @@ import {
   createSession,
   sendMessage,
   type LLMMessage,
-} from 'expo-llm';
+} from 'expo-ai-kit';
 
 type ChatMessage = LLMMessage & { id: string };
 
@@ -119,7 +119,7 @@ export default function App() {
         {/* Header */}
     <View style={styles.header}>
     <View>
-      <Text style={styles.title}>expo-llm</Text>
+      <Text style={styles.title}>expo-ai-kit</Text>
       <Text style={styles.subtitle}>On-device chat demo</Text>
     </View>
     </View>
@@ -176,6 +176,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f2f2f7', 
+    paddingVertical: 16,
   },
   container: {
     flex: 1,

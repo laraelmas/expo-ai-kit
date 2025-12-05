@@ -3,8 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "expo-llm": ["../src/index"],
-      "expo-llm/*": ["../src/*"]
+      "expo-ai-kit": ["../src/index"],
+      "expo-ai-kit/*": ["../src/*"]
     }
   }
 }
