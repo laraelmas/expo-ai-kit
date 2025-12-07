@@ -46,5 +46,12 @@ class ExpoAiKitModule : Module() {
       // Defines an event that the view can send to JavaScript.
       Events("onLoad")
     }
+
+    // TODO: Implement isAvailable() function for Android
+    // This should check if on-device AI capabilities are available on the device
+    // Function("isAvailable") {
+    //   // Check Android AI capabilities (e.g., Gemini Nano, etc.)
+    //   false
+    // }
   }
 }

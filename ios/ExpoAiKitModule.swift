@@ -51,6 +51,14 @@ public class ExpoAiKitModule: Module {
     return ["reply": replyText]
   }
 }
+
+    Function("isAvailable") {
+      if #available(iOS 26.0, *) {
+        return true
+      } else {
+        return false
+      }
+    }
   }
 }
 

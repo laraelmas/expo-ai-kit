@@ -9,6 +9,7 @@ export type ExpoAiKitNativeModule = {
     messages: LLMMessage[],
     options?: LLMOptions
   ): Promise<{ reply: string }>;
+  isAvailable(): boolean;
 };
 
 const NativeModule: ExpoAiKitNativeModule =
