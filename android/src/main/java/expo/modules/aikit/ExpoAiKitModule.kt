@@ -3,8 +3,16 @@ package expo.modules.aikit
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.net.URL
+import expo.modules.kotlin.functions.Coroutine
 
 class ExpoAiKitModule : Module() {
+
+  // ✅ Our native helper that talks to ML Kit Prompt API
+  // (PromptApiClient is the class you created in PromptApiClient.kt)
+  private val promptClient by lazy {
+    PromptApiClient()
+  }
+
   // Each module class must implement the definition function. The definition consists of components
   // that describes the module's functionality and behavior.
   // See https://docs.expo.dev/modules/module-api for more details about available components.
@@ -36,6 +44,19 @@ class ExpoAiKitModule : Module() {
       ))
     }
 
+    // ✅ Android implementation of isAvailable
+    // This will:
+    // - return true on devices where Prompt API is present (AVAILABLE)
+    // - return false on devices like your Samsung A16
+    // - never crash even if AICore / Gemini Nano aren't there
+    AsyncFunction("isAvailable") {
+      promptClient.isAvailableBlocking()
+    }
+
+    AsyncFunction("sendPrompt") Coroutine { prompt: String ->
+      promptClient.generateText(prompt)
+    }
+
     // Enables the module to be used as a native view. Definition components that are accepted as part of
     // the view definition: Prop, Events.
     View(ExpoAiKitView::class) {
@@ -46,12 +67,5 @@ class ExpoAiKitModule : Module() {
       // Defines an event that the view can send to JavaScript.
       Events("onLoad")
     }
-
-    // TODO: Implement isAvailable() function for Android
-    // This should check if on-device AI capabilities are available on the device
-    // Function("isAvailable") {
-    //   // Check Android AI capabilities (e.g., Gemini Nano, etc.)
-    //   false
-    // }
   }
 }

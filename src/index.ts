@@ -19,10 +19,16 @@ export async function sendMessage(
   return NativeModule.sendMessage(sessionId, messages, options);
 }
 
-export function isAvailable(): boolean {
-  if (Platform.OS === 'ios') {
+export async function isAvailable(): Promise<boolean> {
+  if (Platform.OS === 'ios' || Platform.OS === 'android') {
     return NativeModule.isAvailable();
   }
-  // Android support will be added later
   return false;
+}
+
+export async function sendPrompt(prompt: string): Promise<string> {
+  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+    return NativeModule.sendPrompt(prompt);
+  }
+  return '';
 }
