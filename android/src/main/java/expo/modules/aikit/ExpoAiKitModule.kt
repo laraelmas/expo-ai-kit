@@ -2,70 +2,23 @@ package expo.modules.aikit
 
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.net.URL
 import expo.modules.kotlin.functions.Coroutine
 
 class ExpoAiKitModule : Module() {
 
-  // ✅ Our native helper that talks to ML Kit Prompt API
-  // (PromptApiClient is the class you created in PromptApiClient.kt)
-  private val promptClient by lazy {
-    PromptApiClient()
-  }
+  private val promptClient by lazy { PromptApiClient() }
 
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
   override fun definition() = ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('ExpoAiKit')` in JavaScript.
     Name("ExpoAiKit")
 
-    // Defines constant property on the module.
-    Constant("PI") {
-      Math.PI
-    }
-
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
-
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      "Hello world! 👋"
-    }
-
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { value: String ->
-      // Send an event to JavaScript.
-      sendEvent("onChange", mapOf(
-        "value" to value
-      ))
-    }
-
-    // ✅ Android implementation of isAvailable
-    // This will:
-    // - return true on devices where Prompt API is present (AVAILABLE)
-    // - return false on devices like your Samsung A16
-    // - never crash even if AICore / Gemini Nano aren't there
+    // Returns true if device supports Prompt API (AVAILABLE/DOWNLOADABLE/DOWNLOADING)
+    // Returns false on unsupported devices, never crashes
     AsyncFunction("isAvailable") {
       promptClient.isAvailableBlocking()
     }
 
     AsyncFunction("sendPrompt") Coroutine { prompt: String ->
       promptClient.generateText(prompt)
-    }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of
-    // the view definition: Prop, Events.
-    View(ExpoAiKitView::class) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { view: ExpoAiKitView, url: URL ->
-        view.webView.loadUrl(url.toString())
-      }
-      // Defines an event that the view can send to JavaScript.
-      Events("onLoad")
     }
   }
 }

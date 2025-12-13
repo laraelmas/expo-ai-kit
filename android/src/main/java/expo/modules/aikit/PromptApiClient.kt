@@ -2,9 +2,7 @@ package expo.modules.aikit
 
 import android.os.Build
 import com.google.mlkit.genai.common.FeatureStatus
-import com.google.mlkit.genai.prompt.GenerateContentRequest
 import com.google.mlkit.genai.prompt.Generation
-import com.google.mlkit.genai.prompt.TextPart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -14,6 +12,8 @@ class PromptApiClient {
   private val model by lazy { Generation.getClient() }
 
   // ✅ suspend version (matches ML Kit's checkStatus usage)
+  // Returns true if device supports Prompt API (AVAILABLE, DOWNLOADABLE, or DOWNLOADING)
+  // Returns false if unsupported or on API < 26
   suspend fun isAvailable(): Boolean {
     // Prompt API requires API 26+
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
@@ -37,14 +37,17 @@ class PromptApiClient {
   }
 
   suspend fun generateText(prompt: String): String = withContext(Dispatchers.IO) {
+    // Prompt API requires API 26+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return@withContext ""
+
     try {
       val status = model.checkStatus()
       if (status != FeatureStatus.AVAILABLE) {
         return@withContext ""
       }
 
-      val request = GenerateContentRequest.builder(TextPart(prompt)).build()
-      val response = model.generateContent(request)
+      // safest + simplest API across ML Kit alpha versions
+      val response = model.generateContent(prompt)
       response.candidates.firstOrNull()?.text.orEmpty()
     } catch (_: Throwable) {
       ""
