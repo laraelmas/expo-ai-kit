@@ -1,19 +1,28 @@
 # expo-ai-kit
 
-On-device AI for Expo apps. Run language models locally on iOS using Apple's Foundation Models framework—no API keys, no cloud, just native intelligence.
+On-device AI for Expo apps. Run language models locally—no API keys, no cloud, just native intelligence.
+
+## Platform Support
+
+| Platform | Status |
+|----------|--------|
+| iOS 26+  | ✅ Full support |
+| Android  | ✅ [Supported devices](https://developers.google.com/ml-kit/genai) |
+| iOS < 26 | ⚠️ Returns mock responses |
+| Android (unsupported devices) | ⚠️ Returns empty string |
 
 ## Features
 
 - 🔒 **Privacy-first** — All inference happens on-device
 - ⚡ **Zero latency** — No network round-trips
 - 🆓 **Free** — No API costs or rate limits
-- 📱 **Native** — Built on Apple's Foundation Models (iOS 26+)
+- 📱 **Native** — Built on Apple Foundation Models (iOS) and ML Kit Prompt API (Android)
 
 ## Requirements
 
-- iOS 26.0 or later
 - Expo SDK 54+
-- A device with Apple Silicon (M-series or A17 Pro+)
+- **iOS:** iOS 26.0+
+- **Android:** API 26+, [Supported devices](https://developers.google.com/ml-kit/genai)
 
 ## Installation
 
@@ -26,52 +35,59 @@ For bare React Native projects, run `npx pod-install` after installing.
 ## Quick Start
 
 ```tsx
-import { createSession, sendMessage } from 'expo-ai-kit';
+import { isAvailable, sendPrompt } from 'expo-ai-kit';
 
-// Create a chat session
-const sessionId = await createSession({
-  systemPrompt: 'You are a helpful assistant.',
-});
+// Check if on-device AI is available
+const available = await isAvailable();
 
-// Send a message and get a response
-const { reply } = await sendMessage(
-  sessionId,
-  [{ role: 'user', content: 'Hello! What can you do?' }]
-);
-
-console.log(reply);
+if (available) {
+  const response = await sendPrompt('Hello! What can you do?');
+  console.log(response);
+}
 ```
 
 ## Usage
 
-### Creating a Session
+### Simple Prompt (Cross-platform)
 
-Start by creating a session with an optional system prompt:
+The simplest way to use on-device AI:
 
 ```tsx
-import { createSession } from 'expo-ai-kit';
+import { isAvailable, sendPrompt } from 'expo-ai-kit';
 
+async function askAI(question: string) {
+  const available = await isAvailable();
+
+  if (!available) {
+    console.log('On-device AI not available');
+    return null;
+  }
+
+  return await sendPrompt(question);
+}
+
+const answer = await askAI('What is the capital of France?');
+```
+
+### Session-based Chat (iOS only)
+
+For multi-turn conversations with context, use sessions:
+
+```tsx
+import { createSession, sendMessage } from 'expo-ai-kit';
+
+// Create a chat session
 const sessionId = await createSession({
-  systemPrompt: 'You are a friendly cooking assistant. Help users with recipes and meal planning.',
+  systemPrompt: 'You are a friendly cooking assistant.',
 });
-```
 
-### Sending Messages
-
-Send messages and receive AI responses:
-
-```tsx
-import { sendMessage, type LLMMessage } from 'expo-ai-kit';
-
-const messages: LLMMessage[] = [
+// Send messages with conversation history
+const { reply } = await sendMessage(sessionId, [
   { role: 'user', content: 'What can I make with eggs and cheese?' }
-];
-
-const { reply } = await sendMessage(sessionId, messages);
-// reply: "You can make a delicious omelette! Here's how..."
+]);
 ```
 
-### Multi-turn Conversations
+### Multi-turn Conversations (iOS only)
 
 Keep track of the conversation history for context-aware responses:
 
@@ -83,55 +99,47 @@ async function chat(userMessage: string) {
     ...messages,
     { role: 'user', content: userMessage }
   ];
-  
+
   const { reply } = await sendMessage(sessionId, newMessages);
-  
+
   setMessages([
     ...newMessages,
     { role: 'assistant', content: reply }
   ]);
-  
+
   return reply;
 }
 ```
 
 ### Complete Chat Example
 
-Here's a full example of a chat component:
+Here's a full cross-platform chat component:
 
 ```tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, TextInput, Button, Text, FlatList } from 'react-native';
-import { createSession, sendMessage, type LLMMessage } from 'expo-ai-kit';
+import { isAvailable, sendPrompt } from 'expo-ai-kit';
 
 export default function ChatScreen() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<LLMMessage[]>([]);
+  const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [available, setAvailable] = useState(false);
 
-  const ensureSession = async () => {
-    if (sessionId) return sessionId;
-    const id = await createSession({
-      systemPrompt: 'You are a helpful assistant.',
-    });
-    setSessionId(id);
-    return id;
-  };
+  useEffect(() => {
+    isAvailable().then(setAvailable);
+  }, []);
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || !available) return;
 
-    const id = await ensureSession();
-    const userMessage: LLMMessage = { role: 'user', content: input.trim() };
-    const updatedMessages = [...messages, userMessage];
-    
-    setMessages(updatedMessages);
+    const userMessage = { role: 'user', content: input.trim() };
+    setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
 
     try {
-      const { reply } = await sendMessage(id, updatedMessages);
+      const reply = await sendPrompt(input.trim());
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (error) {
       console.error('Error:', error);
@@ -140,14 +148,22 @@ export default function ChatScreen() {
     }
   };
 
+  if (!available) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>On-device AI is not available on this device</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, padding: 16 }}>
       <FlatList
         data={messages}
         keyExtractor={(_, i) => i.toString()}
         renderItem={({ item }) => (
-          <View style={{ 
-            padding: 12, 
+          <View style={{
+            padding: 12,
             marginVertical: 4,
             backgroundColor: item.role === 'user' ? '#007AFF' : '#E5E5EA',
             borderRadius: 16,
@@ -176,9 +192,29 @@ export default function ChatScreen() {
 
 ## API Reference
 
-### `createSession(options?)`
+### `isAvailable()` — iOS, Android
 
-Creates a new chat session.
+Checks if on-device AI is available on the current device.
+
+**Returns:** `Promise<boolean>` — `true` if on-device AI is supported and ready
+
+---
+
+### `sendPrompt(prompt)` — iOS, Android
+
+Sends a prompt and gets a response from the on-device model.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `prompt` | `string` | The text prompt to send |
+
+**Returns:** `Promise<string>` — The AI's response (empty string if unavailable)
+
+---
+
+### `createSession(options?)` — iOS only
+
+Creates a new chat session for multi-turn conversations.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -188,9 +224,9 @@ Creates a new chat session.
 
 ---
 
-### `sendMessage(sessionId, messages, options?)`
+### `sendMessage(sessionId, messages, options?)` — iOS only
 
-Sends messages and gets a response from the on-device model.
+Sends messages and gets a response from the on-device model with conversation context.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -203,7 +239,7 @@ Sends messages and gets a response from the on-device model.
 
 ---
 
-### `prepareModel(options?)`
+### `prepareModel(options?)` — iOS only
 
 Pre-loads the model for faster first response.
 
@@ -215,7 +251,7 @@ Pre-loads the model for faster first response.
 
 ---
 
-### Types
+### Types (iOS only)
 
 ```typescript
 type LLMRole = 'system' | 'user' | 'assistant';
@@ -231,14 +267,6 @@ type LLMOptions = {
   model?: string;
 };
 ```
-
-## Platform Support
-
-| Platform | Status |
-|----------|--------|
-| iOS 26+  | ✅ Full support |
-| iOS < 26 | ⚠️ Returns mock responses |
-| Android  | 🚧 Coming soon |
 
 ## License
 
