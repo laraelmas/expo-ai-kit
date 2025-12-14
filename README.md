@@ -7,7 +7,7 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 | Platform | Status |
 |----------|--------|
 | iOS 26+  | ✅ Full support |
-| Android  | ✅ [Supported devices](https://developers.google.com/ml-kit/genai) |
+| Android  | ✅ [Supported devices](https://developers.google.com/ml-kit/genai#prompt-device) |
 | iOS < 26 | ⚠️ Returns mock responses |
 | Android (unsupported devices) | ⚠️ Returns empty string |
 
@@ -22,7 +22,7 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 
 - Expo SDK 54+
 - **iOS:** iOS 26.0+
-- **Android:** API 26+, [Supported devices](https://developers.google.com/ml-kit/genai)
+- **Android:** API 26+, [Supported devices](https://developers.google.com/ml-kit/genai#prompt-device)
 
 ## Installation
 
