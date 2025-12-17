@@ -1,6 +1,7 @@
 {
-  "platforms": ["apple", "android", "web"],
-  "apple": {
+  "name": "ExpoAiKit",
+  "platforms": ["ios", "android", "web"],
+  "ios": {
     "modules": ["ExpoAiKitModule"]
   },
   "android": {
