@@ -1,16 +1,16 @@
 {
   "name": "expo-ai-kit",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Expo AI Kit module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "files": [
-   "build",
-   "ios",
-   "android",
-   "expo-module.config.json",
-   "README.md",
-   "LICENSE"
+    "build",
+    "ios",
+    "android",
+    "expo-module.config.json",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "expo-module build",
