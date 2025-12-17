@@ -7,7 +7,7 @@ public class ExpoAiKitModule: Module {
 
     AsyncFunction("prepareModel") { (_: [String: Any]?) async throws in
       if #available(iOS 26.0, *) {
-        _ = SystemLanguageModel.default  
+        _ = SystemLanguageModel.default
       } else {
         //
       }
@@ -18,39 +18,41 @@ public class ExpoAiKitModule: Module {
     }
 
     AsyncFunction("sendMessage") {
-  (sessionId: String,
-   messages: [[String: Any]],
-   options: [String: Any]?
-  ) async throws -> [String: Any] in
+      (
+        sessionId: String,
+        messages: [[String: Any]],
+        options: [String: Any]?
+      ) async throws -> [String: Any] in
 
-  let lastUser = messages
-    .reversed()
-    .first { ($0["role"] as? String) == "user" }?["content"] as? String
-    ?? messages.last?["content"] as? String
-    ?? ""
+      let lastUser =
+        messages
+        .reversed()
+        .first { ($0["role"] as? String) == "user" }?["content"] as? String
+        ?? messages.last?["content"] as? String
+        ?? ""
 
-  if #available(iOS 26.0, *) {
-    let systemPrompt = (messages.first {
-      ($0["role"] as? String) == "system"
-    }?["content"] as? String) ?? """
-    You are a helpful, friendly assistant.
-    Answer the user's question directly and concisely.
-    If the question is unsafe, politely refuse, otherwise just answer.
-    """
+      if #available(iOS 26.0, *) {
+        let systemPrompt =
+          (messages.first {
+            ($0["role"] as? String) == "system"
+          }?["content"] as? String) ?? """
+            You are a helpful, friendly assistant.
+            Answer the user's question directly and concisely.
+            If the question is unsafe, politely refuse, otherwise just answer.
+            """
 
-    let session = LanguageModelSession(instructions: systemPrompt)
+        let session = LanguageModelSession(instructions: systemPrompt)
 
-    let response = try await session.respond(to: lastUser)
+        let response = try await session.respond(to: lastUser)
 
- 
-    let replyText = response.content   
+        let replyText = response.content
 
-    return ["reply": replyText]
-  } else {
-    let replyText = "Mock reply (no on-device model): \(lastUser)"
-    return ["reply": replyText]
-  }
-}
+        return ["reply": replyText]
+      } else {
+        let replyText = "Mock reply (no on-device model): \(lastUser)"
+        return ["reply": replyText]
+      }
+    }
 
     Function("isAvailable") {
       if #available(iOS 26.0, *) {
@@ -59,6 +61,21 @@ public class ExpoAiKitModule: Module {
         return false
       }
     }
+
+    AsyncFunction("sendPrompt") { (prompt: String) async throws -> String in
+      if #available(iOS 26.0, *) {
+        let systemPrompt = """
+          You are a helpful, friendly assistant.
+          Answer the user's question directly and concisely.
+          If the question is unsafe, politely refuse, otherwise just answer.
+          """
+
+        let session = LanguageModelSession(instructions: systemPrompt)
+        let response = try await session.respond(to: prompt)
+        return response.content
+      } else {
+        return "Mock reply (no on-device model): \(prompt)"
+      }
+    }
   }
 }
-
