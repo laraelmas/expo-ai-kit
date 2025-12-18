@@ -2,26 +2,31 @@
 
 On-device AI for Expo apps. Run language models locally—no API keys, no cloud, just native intelligence.
 
+[![npm version](https://img.shields.io/npm/v/expo-ai-kit.svg)](https://www.npmjs.com/package/expo-ai-kit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Platform Support
 
-| Platform | Status |
-|----------|--------|
-| iOS 26+  | ✅ Full support |
-| Android  | ✅ [Supported devices](https://developers.google.com/ml-kit/genai#prompt-device) |
-| iOS < 26 | ⚠️ Returns mock responses |
-| Android (unsupported devices) | ⚠️ Returns empty string |
+| Platform | Status | Details |
+|----------|--------|---------|
+| iOS 26+  | ✅ Full support | Apple Foundation Models |
+| Android  | ✅ Full support | [ML Kit Prompt API](https://developers.google.com/ml-kit/genai#prompt-device) |
+| iOS < 26 | ⚠️ Limited | Returns mock responses |
+| Android (unsupported) | ⚠️ Limited | Returns empty string |
 
 ## Features
 
-- 🔒 **Privacy-first** — All inference happens on-device
-- ⚡ **Zero latency** — No network round-trips
-- 🆓 **Free** — No API costs or rate limits
-- 📱 **Native** — Built on Apple Foundation Models (iOS) and ML Kit Prompt API (Android)
+- 🔒 **Privacy-first** — All inference happens on-device; no data leaves the user's device
+- ⚡ **Zero latency** — No network round-trips required
+- 🆓 **Free forever** — No API costs, rate limits, or subscriptions
+- 📱 **Native performance** — Built on Apple Foundation Models (iOS) and Google ML Kit Prompt API (Android)
+- 💬 **Multi-turn conversations** — Session-based chat with full conversation context
+- 🎛️ **Configurable** — Temperature and max tokens control for response generation
 
 ## Requirements
 
 - Expo SDK 54+
-- **iOS:** iOS 26.0+
+- **iOS:** iOS 26.0+ (full support), iOS 15.1+ (limited)
 - **Android:** API 26+, [Supported devices](https://developers.google.com/ml-kit/genai#prompt-device)
 
 ## Installation
@@ -31,6 +36,27 @@ npx expo install expo-ai-kit
 ```
 
 For bare React Native projects, run `npx pod-install` after installing.
+
+### Android Configuration
+
+For Android, ensure your `app.json` includes the minimum SDK version:
+
+```json
+{
+  "expo": {
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ]
+  }
+}
+```
 
 ## Quick Start
 
@@ -69,7 +95,7 @@ async function askAI(question: string) {
 const answer = await askAI('What is the capital of France?');
 ```
 
-### Session-based Chat (iOS only)
+### Session-based Chat
 
 For multi-turn conversations with context, use sessions:
 
@@ -87,7 +113,7 @@ const { reply } = await sendMessage(sessionId, [
 ]);
 ```
 
-### Multi-turn Conversations (iOS only)
+### Multi-turn Conversations
 
 Keep track of the conversation history for context-aware responses:
 
@@ -212,7 +238,7 @@ Sends a prompt and gets a response from the on-device model.
 
 ---
 
-### `createSession(options?)` — iOS only
+### `createSession(options?)` — iOS, Android
 
 Creates a new chat session for multi-turn conversations.
 
@@ -224,7 +250,7 @@ Creates a new chat session for multi-turn conversations.
 
 ---
 
-### `sendMessage(sessionId, messages, options?)` — iOS only
+### `sendMessage(sessionId, messages, options?)` — iOS, Android
 
 Sends messages and gets a response from the on-device model with conversation context.
 
@@ -239,7 +265,7 @@ Sends messages and gets a response from the on-device model with conversation co
 
 ---
 
-### `prepareModel(options?)` — iOS only
+### `prepareModel(options?)` — iOS, Android
 
 Pre-loads the model for faster first response.
 
@@ -251,7 +277,7 @@ Pre-loads the model for faster first response.
 
 ---
 
-### Types (iOS only)
+### Types
 
 ```typescript
 type LLMRole = 'system' | 'user' | 'assistant';
@@ -268,6 +294,37 @@ type LLMOptions = {
 };
 ```
 
+## Feature Comparison
+
+| Feature | iOS 26+ | Android (Supported) |
+|---------|---------|---------------------|
+| `isAvailable()` | ✅ | ✅ |
+| `sendPrompt()` | ✅ | ✅ |
+| `createSession()` | ✅ Full context | ✅ Basic |
+| `sendMessage()` | ✅ Full context | ✅ Basic |
+| `prepareModel()` | ✅ | ✅ No-op |
+| System prompts | ✅ | ✅ |
+| Temperature control | ✅ | ✅ |
+| Max tokens control | ✅ | ✅ |
+
+## How It Works
+
+### iOS
+Uses Apple's Foundation Models framework introduced in iOS 26. The on-device language model runs entirely locally with no internet connection required.
+
+### Android
+Uses Google's ML Kit Prompt API. The model may need to be downloaded on first use on supported devices. Check [supported devices](https://developers.google.com/ml-kit/genai#prompt-device) for compatibility.
+
+## Troubleshooting
+
+### iOS
+- **AI not available**: Ensure you're running iOS 26.0 or later on a supported device
+- **Mock responses**: On iOS < 26, the module returns mock responses for testing
+
+### Android
+- **Empty responses**: The device may not support ML Kit Prompt API. Check the [supported devices list](https://developers.google.com/ml-kit/genai#prompt-device)
+- **Model downloading**: On first use, the model may need to download. Use `isAvailable()` to check status
+
 ## License
 
 MIT
@@ -275,3 +332,10 @@ MIT
 ## Contributing
 
 Contributions are welcome! Please refer to guidelines described in the [contributing guide](https://github.com/expo/expo#contributing).
+
+## Links
+
+- [npm package](https://www.npmjs.com/package/expo-ai-kit)
+- [GitHub repository](https://github.com/laraelmas/expo-ai-kit)
+- [Apple Foundation Models](https://developer.apple.com/documentation/foundationmodels)
+- [Google ML Kit Prompt API](https://developers.google.com/ml-kit/genai)
