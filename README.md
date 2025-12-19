@@ -7,12 +7,19 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 
 ## Platform Support
 
-| Platform | Status | Details |
-|----------|--------|---------|
-| iOS 26+  | ✅ Full support | Apple Foundation Models |
-| Android  | ✅ Full support | [ML Kit Prompt API](https://developers.google.com/ml-kit/genai#prompt-device) |
-| iOS < 26 | ⚠️ Limited | Returns mock responses |
-| Android (unsupported) | ⚠️ Limited | Returns empty string |
+### Supported
+
+| Platform | Details |
+|----------|---------|
+| iOS 26+ | [Apple Foundation Models](https://developer.apple.com/documentation/FoundationModels) |
+| Android (supported devices) | [ML Kit Prompt API](https://developers.google.com/ml-kit/genai#prompt-device) |
+
+### Unsupported
+
+| Platform | Fallback Behavior |
+|----------|-------------------|
+| iOS < 26 | Returns mock responses |
+| Android (unsupported devices) | Returns empty string |
 
 ## Features
 
