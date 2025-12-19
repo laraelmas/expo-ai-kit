@@ -40,7 +40,7 @@
   },
   "author": "Lara Elmas (https://github.com/laraelmas)",
   "license": "MIT",
-  "homepage": "https://github.com/laraelmas/expo-ai-kit#readme",
+  "homepage": "https://expo-ai-kit.com",
   "dependencies": {
     "expo": "~54.0.27",
     "react": "19.1.0",

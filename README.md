@@ -335,6 +335,7 @@ Contributions are welcome! Please refer to guidelines described in the [contribu
 
 ## Links
 
+- [Documentation](https://expo-ai-kit.com)
 - [npm package](https://www.npmjs.com/package/expo-ai-kit)
 - [GitHub repository](https://github.com/laraelmas/expo-ai-kit)
 - [Apple Foundation Models](https://developer.apple.com/documentation/foundationmodels)
