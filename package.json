@@ -1,6 +1,6 @@
 {
   "name": "expo-ai-kit",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Expo AI Kit module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
