@@ -11,11 +11,12 @@ class PromptApiClient {
 
   private val model by lazy { Generation.getClient() }
 
-  // ✅ suspend version (matches ML Kit's checkStatus usage)
-  // Returns true if device supports Prompt API (AVAILABLE, DOWNLOADABLE, or DOWNLOADING)
-  // Returns false if unsupported or on API < 26
+  /**
+   * Check if on-device AI is available.
+   * Returns true if device supports Prompt API (AVAILABLE, DOWNLOADABLE, or DOWNLOADING).
+   * Returns false if unsupported or on API < 26.
+   */
   suspend fun isAvailable(): Boolean {
-    // Prompt API requires API 26+
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
 
     return try {
@@ -26,31 +27,41 @@ class PromptApiClient {
         else -> false
       }
     } catch (_: Throwable) {
-      // Covers: missing AICore / Gemini Nano not supported / config not fetched / etc.
       false
     }
   }
 
-  // ✅ non-suspend wrapper so Expo Module can call it without Coroutine DSL ambiguity
-  fun isAvailableBlocking(): Boolean = runBlocking {
-    isAvailable()
-  }
+  /**
+   * Non-suspend wrapper for Expo module compatibility.
+   */
+  fun isAvailableBlocking(): Boolean = runBlocking { isAvailable() }
 
-  suspend fun generateText(prompt: String): String = withContext(Dispatchers.IO) {
-    // Prompt API requires API 26+
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return@withContext ""
+  /**
+   * Generate text from a prompt.
+   * On Android, we concatenate system prompt + user message since ML Kit
+   * doesn't have a separate system prompt API.
+   */
+  suspend fun generateText(prompt: String, systemPrompt: String): String =
+    withContext(Dispatchers.IO) {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return@withContext ""
 
-    try {
-      val status = model.checkStatus()
-      if (status != FeatureStatus.AVAILABLE) {
-        return@withContext ""
+      try {
+        val status = model.checkStatus()
+        if (status != FeatureStatus.AVAILABLE) {
+          return@withContext ""
+        }
+
+        // Prepend system prompt as context if provided
+        val fullPrompt = if (systemPrompt.isNotBlank()) {
+          "$systemPrompt\n\nUser: $prompt"
+        } else {
+          prompt
+        }
+
+        val response = model.generateContent(fullPrompt)
+        response.candidates.firstOrNull()?.text.orEmpty()
+      } catch (_: Throwable) {
+        ""
       }
-
-      // safest + simplest API across ML Kit alpha versions
-      val response = model.generateContent(prompt)
-      response.candidates.firstOrNull()?.text.orEmpty()
-    } catch (_: Throwable) {
-      ""
     }
-  }
 }

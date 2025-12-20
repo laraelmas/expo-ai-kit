@@ -11,14 +11,25 @@ class ExpoAiKitModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ExpoAiKit")
 
-    // Returns true if device supports Prompt API (AVAILABLE/DOWNLOADABLE/DOWNLOADING)
-    // Returns false on unsupported devices, never crashes
-    AsyncFunction("isAvailable") {
+    Function("isAvailable") {
       promptClient.isAvailableBlocking()
     }
 
-    AsyncFunction("sendPrompt") Coroutine { prompt: String ->
-      promptClient.generateText(prompt)
+    AsyncFunction("sendMessage") Coroutine { messages: List<Map<String, Any>>, fallbackSystemPrompt: String ->
+      // Extract system prompt from messages, or use fallback
+      val systemPrompt = messages
+        .firstOrNull { it["role"] == "system" }
+        ?.get("content") as? String
+        ?: fallbackSystemPrompt.ifBlank { "You are a helpful, friendly assistant." }
+
+      // Get the last user message as the prompt
+      val userPrompt = messages
+        .lastOrNull { it["role"] == "user" }
+        ?.get("content") as? String
+        ?: ""
+
+      val text = promptClient.generateText(userPrompt, systemPrompt)
+      mapOf("text" to text)
     }
   }
 }

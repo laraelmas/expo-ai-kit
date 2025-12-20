@@ -18,17 +18,17 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 
 | Platform | Fallback Behavior |
 |----------|-------------------|
-| iOS < 26 | Returns mock responses |
+| iOS < 26 | Returns fallback message |
 | Android (unsupported devices) | Returns empty string |
 
 ## Features
 
-- 🔒 **Privacy-first** — All inference happens on-device; no data leaves the user's device
-- ⚡ **Zero latency** — No network round-trips required
-- 🆓 **Free forever** — No API costs, rate limits, or subscriptions
-- 📱 **Native performance** — Built on Apple Foundation Models (iOS) and Google ML Kit Prompt API (Android)
-- 💬 **Multi-turn conversations** — Session-based chat with full conversation context
-- 🎛️ **Configurable** — Temperature and max tokens control for response generation
+- **Privacy-first** — All inference happens on-device; no data leaves the user's device
+- **Zero latency** — No network round-trips required
+- **Free forever** — No API costs, rate limits, or subscriptions
+- **Native performance** — Built on Apple Foundation Models (iOS) and Google ML Kit Prompt API (Android)
+- **Multi-turn conversations** — Full conversation context support
+- **Simple API** — Just 2 functions: `isAvailable()` and `sendMessage()`
 
 ## Requirements
 
@@ -68,25 +68,27 @@ For Android, ensure your `app.json` includes the minimum SDK version:
 ## Quick Start
 
 ```tsx
-import { isAvailable, sendPrompt } from 'expo-ai-kit';
+import { isAvailable, sendMessage } from 'expo-ai-kit';
 
 // Check if on-device AI is available
 const available = await isAvailable();
 
 if (available) {
-  const response = await sendPrompt('Hello! What can you do?');
-  console.log(response);
+  const response = await sendMessage([
+    { role: 'user', content: 'Hello! What can you do?' }
+  ]);
+  console.log(response.text);
 }
 ```
 
 ## Usage
 
-### Simple Prompt (Cross-platform)
+### Simple Prompt
 
 The simplest way to use on-device AI:
 
 ```tsx
-import { isAvailable, sendPrompt } from 'expo-ai-kit';
+import { isAvailable, sendMessage } from 'expo-ai-kit';
 
 async function askAI(question: string) {
   const available = await isAvailable();
@@ -96,52 +98,48 @@ async function askAI(question: string) {
     return null;
   }
 
-  return await sendPrompt(question);
+  const response = await sendMessage([
+    { role: 'user', content: question }
+  ]);
+  return response.text;
 }
 
 const answer = await askAI('What is the capital of France?');
 ```
 
-### Session-based Chat
+### With Custom System Prompt
 
-For multi-turn conversations with context, use sessions:
+Customize the AI's behavior with a system prompt:
 
 ```tsx
-import { createSession, sendMessage } from 'expo-ai-kit';
+import { sendMessage } from 'expo-ai-kit';
 
-// Create a chat session
-const sessionId = await createSession({
-  systemPrompt: 'You are a friendly cooking assistant.',
-});
+const response = await sendMessage(
+  [{ role: 'user', content: 'Tell me a joke' }],
+  { systemPrompt: 'You are a comedian who specializes in dad jokes.' }
+);
 
-// Send messages with conversation history
-const { reply } = await sendMessage(sessionId, [
-  { role: 'user', content: 'What can I make with eggs and cheese?' }
-]);
+console.log(response.text);
 ```
 
 ### Multi-turn Conversations
 
-Keep track of the conversation history for context-aware responses:
+For conversations with context, pass the full conversation history:
 
 ```tsx
-const [messages, setMessages] = useState<LLMMessage[]>([]);
+import { sendMessage, type LLMMessage } from 'expo-ai-kit';
 
-async function chat(userMessage: string) {
-  const newMessages = [
-    ...messages,
-    { role: 'user', content: userMessage }
-  ];
+const conversation: LLMMessage[] = [
+  { role: 'user', content: 'My name is Alice.' },
+  { role: 'assistant', content: 'Nice to meet you, Alice!' },
+  { role: 'user', content: 'What is my name?' },
+];
 
-  const { reply } = await sendMessage(sessionId, newMessages);
+const response = await sendMessage(conversation, {
+  systemPrompt: 'You are a helpful assistant.',
+});
 
-  setMessages([
-    ...newMessages,
-    { role: 'assistant', content: reply }
-  ]);
-
-  return reply;
-}
+console.log(response.text); // "Your name is Alice."
 ```
 
 ### Complete Chat Example
@@ -151,10 +149,10 @@ Here's a full cross-platform chat component:
 ```tsx
 import React, { useState, useEffect } from 'react';
 import { View, TextInput, Button, Text, FlatList } from 'react-native';
-import { isAvailable, sendPrompt } from 'expo-ai-kit';
+import { isAvailable, sendMessage, type LLMMessage } from 'expo-ai-kit';
 
 export default function ChatScreen() {
-  const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [messages, setMessages] = useState<LLMMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [available, setAvailable] = useState(false);
@@ -166,14 +164,17 @@ export default function ChatScreen() {
   const handleSend = async () => {
     if (!input.trim() || loading || !available) return;
 
-    const userMessage = { role: 'user', content: input.trim() };
-    setMessages(prev => [...prev, userMessage]);
+    const userMessage: LLMMessage = { role: 'user', content: input.trim() };
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput('');
     setLoading(true);
 
     try {
-      const reply = await sendPrompt(input.trim());
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      const response = await sendMessage(newMessages, {
+        systemPrompt: 'You are a helpful assistant.',
+      });
+      setMessages(prev => [...prev, { role: 'assistant', content: response.text }]);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -225,62 +226,41 @@ export default function ChatScreen() {
 
 ## API Reference
 
-### `isAvailable()` — iOS, Android
+### `isAvailable()`
 
 Checks if on-device AI is available on the current device.
+
+```typescript
+function isAvailable(): Promise<boolean>
+```
 
 **Returns:** `Promise<boolean>` — `true` if on-device AI is supported and ready
 
 ---
 
-### `sendPrompt(prompt)` — iOS, Android
+### `sendMessage(messages, options?)`
 
-Sends a prompt and gets a response from the on-device model.
+Sends a conversation and gets a response from the on-device model.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `prompt` | `string` | The text prompt to send |
-
-**Returns:** `Promise<string>` — The AI's response (empty string if unavailable)
-
----
-
-### `createSession(options?)` — iOS, Android
-
-Creates a new chat session for multi-turn conversations.
+```typescript
+function sendMessage(messages: LLMMessage[], options?: LLMSendOptions): Promise<LLMResponse>
+```
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options.systemPrompt` | `string` | Optional system prompt to guide the AI's behavior |
-
-**Returns:** `Promise<string>` — A unique session ID
-
----
-
-### `sendMessage(sessionId, messages, options?)` — iOS, Android
-
-Sends messages and gets a response from the on-device model with conversation context.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `sessionId` | `string` | The session ID from `createSession` |
 | `messages` | `LLMMessage[]` | Array of conversation messages |
-| `options.temperature` | `number` | Controls randomness (0-1) |
-| `options.maxTokens` | `number` | Maximum response length |
+| `options.systemPrompt` | `string` | Fallback system prompt (ignored if messages contain a system message) |
 
-**Returns:** `Promise<{ reply: string }>` — The AI's response
+**Returns:** `Promise<LLMResponse>` — Object with `text` property containing the response
 
----
-
-### `prepareModel(options?)` — iOS, Android
-
-Pre-loads the model for faster first response.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `options.model` | `string` | Model identifier (optional) |
-
-**Returns:** `Promise<void>`
+**Example:**
+```tsx
+const response = await sendMessage([
+  { role: 'system', content: 'You are a pirate.' },
+  { role: 'user', content: 'Hello!' },
+]);
+console.log(response.text); // "Ahoy, matey!"
+```
 
 ---
 
@@ -294,10 +274,14 @@ type LLMMessage = {
   content: string;
 };
 
-type LLMOptions = {
-  temperature?: number;
-  maxTokens?: number;
-  model?: string;
+type LLMSendOptions = {
+  /** Fallback system prompt if no system message in messages array */
+  systemPrompt?: string;
+};
+
+type LLMResponse = {
+  /** The generated response text */
+  text: string;
 };
 ```
 
@@ -306,13 +290,9 @@ type LLMOptions = {
 | Feature | iOS 26+ | Android (Supported) |
 |---------|---------|---------------------|
 | `isAvailable()` | ✅ | ✅ |
-| `sendPrompt()` | ✅ | ✅ |
-| `createSession()` | ✅ Full context | ✅ Basic |
-| `sendMessage()` | ✅ Full context | ✅ Basic |
-| `prepareModel()` | ✅ | ✅ No-op |
-| System prompts | ✅ | ✅ |
-| Temperature control | ✅ | ✅ |
-| Max tokens control | ✅ | ✅ |
+| `sendMessage()` | ✅ | ✅ |
+| System prompts | ✅ Native | ✅ Prepended |
+| Multi-turn context | ✅ | ✅ |
 
 ## How It Works
 
@@ -326,11 +306,34 @@ Uses Google's ML Kit Prompt API. The model may need to be downloaded on first us
 
 ### iOS
 - **AI not available**: Ensure you're running iOS 26.0 or later on a supported device
-- **Mock responses**: On iOS < 26, the module returns mock responses for testing
+- **Fallback responses**: On iOS < 26, the module returns a fallback message
 
 ### Android
 - **Empty responses**: The device may not support ML Kit Prompt API. Check the [supported devices list](https://developers.google.com/ml-kit/genai#prompt-device)
 - **Model downloading**: On first use, the model may need to download. Use `isAvailable()` to check status
+
+## Migration from v0.1.x
+
+If you're upgrading from an earlier version, here are the breaking changes:
+
+| Old API | New API |
+|---------|---------|
+| `sendPrompt(prompt)` | `sendMessage([{ role: 'user', content: prompt }])` |
+| `createSession(options)` | **Removed** — no longer needed |
+| `sendMessage(sessionId, messages, options)` | `sendMessage(messages, options)` — no session ID |
+| `prepareModel(options)` | **Removed** |
+| `{ reply: string }` | `{ text: string }` |
+
+**Before:**
+```tsx
+const sessionId = await createSession({ systemPrompt: '...' });
+const { reply } = await sendMessage(sessionId, messages, {});
+```
+
+**After:**
+```tsx
+const { text } = await sendMessage(messages, { systemPrompt: '...' });
+```
 
 ## License
 
