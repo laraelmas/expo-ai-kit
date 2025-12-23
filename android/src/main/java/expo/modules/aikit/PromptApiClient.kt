@@ -4,6 +4,8 @@ import android.os.Build
 import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.prompt.Generation
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
@@ -64,4 +66,47 @@ class PromptApiClient {
         ""
       }
     }
+
+  /**
+   * Generate streaming text from a prompt.
+   * Returns a Flow that emits chunks of generated text.
+   */
+  suspend fun generateTextStream(
+    prompt: String,
+    systemPrompt: String,
+    onChunk: (token: String, accumulatedText: String, isDone: Boolean) -> Unit
+  ) = withContext(Dispatchers.IO) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+      onChunk("", "", true)
+      return@withContext
+    }
+
+    try {
+      val status = model.checkStatus()
+      if (status != FeatureStatus.AVAILABLE) {
+        onChunk("", "", true)
+        return@withContext
+      }
+
+      // Prepend system prompt as context if provided
+      val fullPrompt = if (systemPrompt.isNotBlank()) {
+        "$systemPrompt\n\nUser: $prompt"
+      } else {
+        prompt
+      }
+
+      var accumulatedText = ""
+
+      model.generateContentStream(fullPrompt).collect { response ->
+        val newChunk = response.candidates.firstOrNull()?.text.orEmpty()
+        accumulatedText += newChunk
+        onChunk(newChunk, accumulatedText, false)
+      }
+
+      // Send final done event
+      onChunk("", accumulatedText, true)
+    } catch (e: Throwable) {
+      onChunk("", "[Error: ${e.message}]", true)
+    }
+  }
 }

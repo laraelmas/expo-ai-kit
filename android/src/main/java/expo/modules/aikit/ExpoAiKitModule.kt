@@ -3,13 +3,23 @@ package expo.modules.aikit
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.functions.Coroutine
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 
 class ExpoAiKitModule : Module() {
 
   private val promptClient by lazy { PromptApiClient() }
+  private val activeStreamJobs = mutableMapOf<String, Job>()
+  private val streamScope = CoroutineScope(Dispatchers.IO)
 
   override fun definition() = ModuleDefinition {
     Name("ExpoAiKit")
+
+    // Declare events that can be sent to JavaScript
+    Events("onStreamToken")
 
     Function("isAvailable") {
       promptClient.isAvailableBlocking()
@@ -30,6 +40,43 @@ class ExpoAiKitModule : Module() {
 
       val text = promptClient.generateText(userPrompt, systemPrompt)
       mapOf("text" to text)
+    }
+
+    AsyncFunction("startStreaming") { messages: List<Map<String, Any>>, fallbackSystemPrompt: String, sessionId: String ->
+      // Extract system prompt from messages, or use fallback
+      val systemPrompt = messages
+        .firstOrNull { it["role"] == "system" }
+        ?.get("content") as? String
+        ?: fallbackSystemPrompt.ifBlank { "You are a helpful, friendly assistant." }
+
+      // Get the last user message as the prompt
+      val userPrompt = messages
+        .lastOrNull { it["role"] == "user" }
+        ?.get("content") as? String
+        ?: ""
+
+      // Launch streaming in a coroutine that can be cancelled
+      val job = streamScope.launch {
+        promptClient.generateTextStream(userPrompt, systemPrompt) { token, accumulatedText, isDone ->
+          sendEvent("onStreamToken", mapOf(
+            "sessionId" to sessionId,
+            "token" to token,
+            "accumulatedText" to accumulatedText,
+            "isDone" to isDone
+          ))
+
+          if (isDone) {
+            activeStreamJobs.remove(sessionId)
+          }
+        }
+      }
+
+      activeStreamJobs[sessionId] = job
+    }
+
+    AsyncFunction("stopStreaming") { sessionId: String ->
+      activeStreamJobs[sessionId]?.cancel()
+      activeStreamJobs.remove(sessionId)
     }
   }
 }

@@ -1,15 +1,30 @@
 import { requireNativeModule } from 'expo-modules-core';
-import { LLMMessage, LLMResponse } from './types';
+import type { EventSubscription } from 'expo-modules-core';
+import { LLMMessage, LLMResponse, LLMStreamEvent } from './types';
 
-export type ExpoAiKitNativeModule = {
+export type ExpoAiKitModuleEvents = {
+  onStreamToken: (event: LLMStreamEvent) => void;
+};
+
+export interface ExpoAiKitNativeModule {
   isAvailable(): boolean;
   sendMessage(
     messages: LLMMessage[],
     systemPrompt: string
   ): Promise<LLMResponse>;
-};
+  startStreaming(
+    messages: LLMMessage[],
+    systemPrompt: string,
+    sessionId: string
+  ): Promise<void>;
+  stopStreaming(sessionId: string): Promise<void>;
+  addListener<K extends keyof ExpoAiKitModuleEvents>(
+    eventName: K,
+    listener: ExpoAiKitModuleEvents[K]
+  ): EventSubscription;
+}
 
-const NativeModule: ExpoAiKitNativeModule =
+const ExpoAiKitModule =
   requireNativeModule<ExpoAiKitNativeModule>('ExpoAiKit');
 
-export default NativeModule;
+export default ExpoAiKitModule;

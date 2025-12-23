@@ -28,7 +28,8 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 - **Free forever** — No API costs, rate limits, or subscriptions
 - **Native performance** — Built on Apple Foundation Models (iOS) and Google ML Kit Prompt API (Android)
 - **Multi-turn conversations** — Full conversation context support
-- **Simple API** — Just 2 functions: `isAvailable()` and `sendMessage()`
+- **Streaming support** — Progressive token streaming for responsive UIs
+- **Simple API** — Just 3 functions: `isAvailable()`, `sendMessage()`, and `streamMessage()`
 
 ## Requirements
 
@@ -140,6 +141,79 @@ const response = await sendMessage(conversation, {
 });
 
 console.log(response.text); // "Your name is Alice."
+```
+
+### Streaming Responses
+
+For a ChatGPT-like experience where text appears progressively:
+
+```tsx
+import { streamMessage } from 'expo-ai-kit';
+
+const [responseText, setResponseText] = useState('');
+
+const { promise, stop } = streamMessage(
+  [{ role: 'user', content: 'Tell me a story' }],
+  (event) => {
+    // Update UI with each token
+    setResponseText(event.accumulatedText);
+
+    // event.token - the new token/chunk
+    // event.accumulatedText - full text so far
+    // event.isDone - whether streaming is complete
+  },
+  { systemPrompt: 'You are a creative storyteller.' }
+);
+
+// Optionally cancel the stream
+// stop();
+
+// Wait for completion
+await promise;
+```
+
+### Streaming with Cancel Button
+
+```tsx
+import { useState, useRef } from 'react';
+import { streamMessage } from 'expo-ai-kit';
+
+function ChatWithStreaming() {
+  const [text, setText] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const stopRef = useRef<(() => void) | null>(null);
+
+  const handleSend = async () => {
+    setIsStreaming(true);
+    setText('');
+
+    const { promise, stop } = streamMessage(
+      [{ role: 'user', content: 'Write a long story' }],
+      (event) => setText(event.accumulatedText)
+    );
+
+    stopRef.current = stop;
+    await promise;
+    stopRef.current = null;
+    setIsStreaming(false);
+  };
+
+  const handleStop = () => {
+    stopRef.current?.();
+    setIsStreaming(false);
+  };
+
+  return (
+    <View>
+      <Text>{text}</Text>
+      {isStreaming ? (
+        <Button title="Stop" onPress={handleStop} />
+      ) : (
+        <Button title="Send" onPress={handleSend} />
+      )}
+    </View>
+  );
+}
 ```
 
 ### Complete Chat Example
@@ -264,6 +338,48 @@ console.log(response.text); // "Ahoy, matey!"
 
 ---
 
+### `streamMessage(messages, onToken, options?)`
+
+Streams a conversation response with progressive token updates. Ideal for responsive chat UIs.
+
+```typescript
+function streamMessage(
+  messages: LLMMessage[],
+  onToken: LLMStreamCallback,
+  options?: LLMStreamOptions
+): { promise: Promise<LLMResponse>; stop: () => void }
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `messages` | `LLMMessage[]` | Array of conversation messages |
+| `onToken` | `LLMStreamCallback` | Callback called for each token received |
+| `options.systemPrompt` | `string` | Fallback system prompt (ignored if messages contain a system message) |
+
+**Returns:** Object with:
+- `promise: Promise<LLMResponse>` — Resolves when streaming completes
+- `stop: () => void` — Function to cancel the stream
+
+**Example:**
+```tsx
+const { promise, stop } = streamMessage(
+  [{ role: 'user', content: 'Hello!' }],
+  (event) => {
+    console.log(event.token);           // New token: "Hi"
+    console.log(event.accumulatedText); // Full text: "Hi there!"
+    console.log(event.isDone);          // false until complete
+  }
+);
+
+// Cancel if needed
+setTimeout(() => stop(), 5000);
+
+// Wait for completion
+const response = await promise;
+```
+
+---
+
 ### Types
 
 ```typescript
@@ -279,10 +395,28 @@ type LLMSendOptions = {
   systemPrompt?: string;
 };
 
+type LLMStreamOptions = {
+  /** Fallback system prompt if no system message in messages array */
+  systemPrompt?: string;
+};
+
 type LLMResponse = {
   /** The generated response text */
   text: string;
 };
+
+type LLMStreamEvent = {
+  /** Unique identifier for this streaming session */
+  sessionId: string;
+  /** The token/chunk of text received */
+  token: string;
+  /** Accumulated text so far */
+  accumulatedText: string;
+  /** Whether this is the final chunk */
+  isDone: boolean;
+};
+
+type LLMStreamCallback = (event: LLMStreamEvent) => void;
 ```
 
 ## Feature Comparison
@@ -291,8 +425,10 @@ type LLMResponse = {
 |---------|---------|---------------------|
 | `isAvailable()` | ✅ | ✅ |
 | `sendMessage()` | ✅ | ✅ |
+| `streamMessage()` | ✅ | ✅ |
 | System prompts | ✅ Native | ✅ Prepended |
 | Multi-turn context | ✅ | ✅ |
+| Cancel streaming | ✅ | ✅ |
 
 ## How It Works
 
@@ -312,7 +448,7 @@ Uses Google's ML Kit Prompt API. The model may need to be downloaded on first us
 - **Empty responses**: The device may not support ML Kit Prompt API. Check the [supported devices list](https://developers.google.com/ml-kit/genai#prompt-device)
 - **Model downloading**: On first use, the model may need to download. Use `isAvailable()` to check status
 
-## Migration from v0.1.x
+## Migration from v0.1.4
 
 If you're upgrading from an earlier version, here are the breaking changes:
 
@@ -334,6 +470,17 @@ const { reply } = await sendMessage(sessionId, messages, {});
 ```tsx
 const { text } = await sendMessage(messages, { systemPrompt: '...' });
 ```
+
+## Roadmap
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| ✅ Streaming responses | Done | - |
+| Prompt helpers (summarize, translate, etc.) | Planned | Medium |
+| Web/generic fallback | Idea | Medium |
+| Configurable hyperparameters (temperature, etc.) | Idea | Low |
+
+Have a feature request? [Open an issue](https://github.com/laraelmas/expo-ai-kit/issues)!
 
 ## License
 

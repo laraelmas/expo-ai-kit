@@ -9,22 +9,47 @@ jest.mock('react-native', () => ({
   },
 }));
 
+// Store event listeners for testing - must be prefixed with 'mock' for jest
+let mockEventListeners = {};
+
 // Mock the native module
 jest.mock('../ExpoAiKitModule', () => ({
   __esModule: true,
   default: {
     isAvailable: jest.fn(() => true),
     sendMessage: jest.fn(() => Promise.resolve({ text: 'Mock response' })),
+    startStreaming: jest.fn(() => Promise.resolve()),
+    stopStreaming: jest.fn(() => Promise.resolve()),
+    addListener: jest.fn((eventName, callback) => {
+      if (!mockEventListeners[eventName]) {
+        mockEventListeners[eventName] = [];
+      }
+      mockEventListeners[eventName].push(callback);
+      return {
+        remove: () => {
+          mockEventListeners[eventName] = mockEventListeners[eventName].filter(
+            (cb) => cb !== callback
+          );
+        },
+      };
+    }),
   },
 }));
 
-const { isAvailable, sendMessage } = require('../index');
+// Helper to simulate native events
+const simulateStreamEvent = (event) => {
+  const listeners = mockEventListeners['onStreamToken'] || [];
+  listeners.forEach((cb) => cb(event));
+};
+
+const { isAvailable, sendMessage, streamMessage } = require('../index');
 const NativeModule = require('../ExpoAiKitModule').default;
 
 describe('expo-ai-kit', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPlatformOS = 'ios';
+    mockEventListeners = {};
   });
 
   describe('isAvailable', () => {
@@ -119,6 +144,154 @@ describe('expo-ai-kit', () => {
           { role: 'user', content: 'How are you?' },
         ])
       ).resolves.not.toThrow();
+    });
+  });
+
+  describe('streamMessage', () => {
+    it('returns promise and stop function', () => {
+      const messages = [{ role: 'user', content: 'Hello' }];
+      const onToken = jest.fn();
+
+      const result = streamMessage(messages, onToken);
+
+      expect(result).toHaveProperty('promise');
+      expect(result).toHaveProperty('stop');
+      expect(typeof result.stop).toBe('function');
+    });
+
+    it('calls native startStreaming with correct arguments', () => {
+      const messages = [{ role: 'user', content: 'Hello' }];
+      const onToken = jest.fn();
+
+      streamMessage(messages, onToken);
+
+      expect(NativeModule.startStreaming).toHaveBeenCalledWith(
+        messages,
+        'You are a helpful, friendly assistant. Answer the user directly and concisely.',
+        expect.stringMatching(/^stream_\d+_\d+$/)
+      );
+    });
+
+    it('uses custom system prompt from options', () => {
+      const messages = [{ role: 'user', content: 'Hello' }];
+      const onToken = jest.fn();
+
+      streamMessage(messages, onToken, { systemPrompt: 'Be a pirate.' });
+
+      expect(NativeModule.startStreaming).toHaveBeenCalledWith(
+        messages,
+        'Be a pirate.',
+        expect.any(String)
+      );
+    });
+
+    it('passes empty string when messages contain system message', () => {
+      const messages = [
+        { role: 'system', content: 'Be brief.' },
+        { role: 'user', content: 'Hello' },
+      ];
+      const onToken = jest.fn();
+
+      streamMessage(messages, onToken, { systemPrompt: 'This should be ignored' });
+
+      expect(NativeModule.startStreaming).toHaveBeenCalledWith(
+        messages,
+        '',
+        expect.any(String)
+      );
+    });
+
+    it('calls onToken callback for each stream event', async () => {
+      const messages = [{ role: 'user', content: 'Hello' }];
+      const onToken = jest.fn();
+
+      const { promise } = streamMessage(messages, onToken);
+
+      // Get the sessionId that was used
+      const sessionId = NativeModule.startStreaming.mock.calls[0][2];
+
+      // Simulate streaming events
+      simulateStreamEvent({
+        sessionId,
+        token: 'Hello',
+        accumulatedText: 'Hello',
+        isDone: false,
+      });
+
+      simulateStreamEvent({
+        sessionId,
+        token: ' world',
+        accumulatedText: 'Hello world',
+        isDone: false,
+      });
+
+      simulateStreamEvent({
+        sessionId,
+        token: '',
+        accumulatedText: 'Hello world',
+        isDone: true,
+      });
+
+      const result = await promise;
+
+      expect(onToken).toHaveBeenCalledTimes(3);
+      expect(onToken).toHaveBeenNthCalledWith(1, {
+        sessionId,
+        token: 'Hello',
+        accumulatedText: 'Hello',
+        isDone: false,
+      });
+      expect(result).toEqual({ text: 'Hello world' });
+    });
+
+    it('ignores events from other sessions', () => {
+      const messages = [{ role: 'user', content: 'Hello' }];
+      const onToken = jest.fn();
+
+      streamMessage(messages, onToken);
+
+      // Simulate event from different session
+      simulateStreamEvent({
+        sessionId: 'other_session',
+        token: 'Other',
+        accumulatedText: 'Other',
+        isDone: false,
+      });
+
+      expect(onToken).not.toHaveBeenCalled();
+    });
+
+    it('calls stopStreaming when stop() is called', () => {
+      const messages = [{ role: 'user', content: 'Hello' }];
+      const onToken = jest.fn();
+
+      const { stop } = streamMessage(messages, onToken);
+      const sessionId = NativeModule.startStreaming.mock.calls[0][2];
+
+      stop();
+
+      expect(NativeModule.stopStreaming).toHaveBeenCalledWith(sessionId);
+    });
+
+    it('returns empty response on unsupported platforms', () => {
+      mockPlatformOS = 'web';
+
+      const messages = [{ role: 'user', content: 'Hello' }];
+      const onToken = jest.fn();
+
+      const { promise, stop } = streamMessage(messages, onToken);
+
+      expect(NativeModule.startStreaming).not.toHaveBeenCalled();
+      expect(promise).resolves.toEqual({ text: '' });
+      expect(stop).toBeDefined();
+    });
+
+    it('rejects promise for empty messages array', () => {
+      const onToken = jest.fn();
+
+      const { promise } = streamMessage([], onToken);
+
+      expect(promise).rejects.toThrow('messages array cannot be empty');
     });
   });
 });
