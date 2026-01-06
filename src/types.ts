@@ -59,3 +59,82 @@ export type LLMStreamEvent = {
  * Callback function for streaming events.
  */
 export type LLMStreamCallback = (event: LLMStreamEvent) => void;
+
+// ============================================================================
+// Prompt Helper Types
+// ============================================================================
+
+/**
+ * Options for the summarize helper.
+ */
+export type LLMSummarizeOptions = {
+  /**
+   * Target length for the summary.
+   * @default 'medium'
+   */
+  length?: 'short' | 'medium' | 'long';
+  /**
+   * Style of summary to generate.
+   * @default 'paragraph'
+   */
+  style?: 'paragraph' | 'bullets' | 'tldr';
+};
+
+/**
+ * Options for the translate helper.
+ */
+export type LLMTranslateOptions = {
+  /**
+   * Target language to translate to.
+   */
+  to: string;
+  /**
+   * Source language (auto-detected if not provided).
+   */
+  from?: string;
+  /**
+   * Tone/formality of the translation.
+   * @default 'neutral'
+   */
+  tone?: 'formal' | 'informal' | 'neutral';
+};
+
+/**
+ * Options for the rewrite helper.
+ */
+export type LLMRewriteOptions = {
+  /**
+   * Style to rewrite in.
+   */
+  style:
+    | 'formal'
+    | 'casual'
+    | 'professional'
+    | 'friendly'
+    | 'concise'
+    | 'detailed'
+    | 'simple'
+    | 'academic';
+};
+
+/**
+ * Options for the extractKeyPoints helper.
+ */
+export type LLMExtractKeyPointsOptions = {
+  /**
+   * Maximum number of key points to extract.
+   * @default 5
+   */
+  maxPoints?: number;
+};
+
+/**
+ * Options for the answerQuestion helper.
+ */
+export type LLMAnswerQuestionOptions = {
+  /**
+   * How detailed the answer should be.
+   * @default 'medium'
+   */
+  detail?: 'brief' | 'medium' | 'detailed';
+};

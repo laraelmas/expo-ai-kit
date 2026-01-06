@@ -42,7 +42,21 @@ const simulateStreamEvent = (event) => {
   listeners.forEach((cb) => cb(event));
 };
 
-const { isAvailable, sendMessage, streamMessage } = require('../index');
+const {
+  isAvailable,
+  sendMessage,
+  streamMessage,
+  summarize,
+  streamSummarize,
+  translate,
+  streamTranslate,
+  rewrite,
+  streamRewrite,
+  extractKeyPoints,
+  streamExtractKeyPoints,
+  answerQuestion,
+  streamAnswerQuestion,
+} = require('../index');
 const NativeModule = require('../ExpoAiKitModule').default;
 
 describe('expo-ai-kit', () => {
@@ -292,6 +306,325 @@ describe('expo-ai-kit', () => {
       const { promise } = streamMessage([], onToken);
 
       expect(promise).rejects.toThrow('messages array cannot be empty');
+    });
+  });
+
+  // ============================================================================
+  // Prompt Helper Tests
+  // ============================================================================
+
+  describe('summarize', () => {
+    it('throws error for empty text', async () => {
+      await expect(summarize('')).rejects.toThrow('text cannot be empty');
+      await expect(summarize('   ')).rejects.toThrow('text cannot be empty');
+    });
+
+    it('calls sendMessage with summarization system prompt', async () => {
+      await summarize('Some long text to summarize');
+
+      expect(NativeModule.sendMessage).toHaveBeenCalledWith(
+        [{ role: 'user', content: 'Some long text to summarize' }],
+        expect.stringContaining('summarization assistant')
+      );
+    });
+
+    it('uses default options (medium length, paragraph style)', async () => {
+      await summarize('Text');
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('3-5 sentences');
+      expect(systemPrompt).toContain('flowing paragraph');
+    });
+
+    it('respects length option', async () => {
+      await summarize('Text', { length: 'short' });
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('1-2 sentences');
+    });
+
+    it('respects style option', async () => {
+      await summarize('Text', { style: 'bullets' });
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('bullet points');
+    });
+
+    it('returns empty response on unsupported platforms', async () => {
+      mockPlatformOS = 'web';
+
+      const result = await summarize('Text');
+
+      expect(result).toEqual({ text: '' });
+      expect(NativeModule.sendMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('streamSummarize', () => {
+    it('returns promise and stop function', () => {
+      const onToken = jest.fn();
+      const result = streamSummarize('Text', onToken);
+
+      expect(result).toHaveProperty('promise');
+      expect(result).toHaveProperty('stop');
+    });
+
+    it('rejects for empty text', () => {
+      const onToken = jest.fn();
+      const { promise } = streamSummarize('', onToken);
+
+      expect(promise).rejects.toThrow('text cannot be empty');
+    });
+
+    it('calls native startStreaming with summarization prompt', () => {
+      const onToken = jest.fn();
+      streamSummarize('Text', onToken, { style: 'tldr' });
+
+      const systemPrompt = NativeModule.startStreaming.mock.calls[0][1];
+      expect(systemPrompt).toContain('TL;DR');
+    });
+  });
+
+  describe('translate', () => {
+    it('throws error for empty text', async () => {
+      await expect(translate('', { to: 'Spanish' })).rejects.toThrow(
+        'text cannot be empty'
+      );
+    });
+
+    it('calls sendMessage with translation system prompt', async () => {
+      await translate('Hello', { to: 'Spanish' });
+
+      expect(NativeModule.sendMessage).toHaveBeenCalledWith(
+        [{ role: 'user', content: 'Hello' }],
+        expect.stringContaining('translation assistant')
+      );
+    });
+
+    it('includes target language in prompt', async () => {
+      await translate('Hello', { to: 'Japanese' });
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('to Japanese');
+    });
+
+    it('includes source language when provided', async () => {
+      await translate('Hello', { to: 'Spanish', from: 'English' });
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('from English');
+    });
+
+    it('respects tone option', async () => {
+      await translate('Hello', { to: 'Spanish', tone: 'formal' });
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('formal language');
+    });
+
+    it('returns empty response on unsupported platforms', async () => {
+      mockPlatformOS = 'web';
+
+      const result = await translate('Hello', { to: 'Spanish' });
+
+      expect(result).toEqual({ text: '' });
+    });
+  });
+
+  describe('streamTranslate', () => {
+    it('returns promise and stop function', () => {
+      const onToken = jest.fn();
+      const result = streamTranslate('Hello', onToken, { to: 'Spanish' });
+
+      expect(result).toHaveProperty('promise');
+      expect(result).toHaveProperty('stop');
+    });
+
+    it('rejects for empty text', () => {
+      const onToken = jest.fn();
+      const { promise } = streamTranslate('', onToken, { to: 'Spanish' });
+
+      expect(promise).rejects.toThrow('text cannot be empty');
+    });
+  });
+
+  describe('rewrite', () => {
+    it('throws error for empty text', async () => {
+      await expect(rewrite('', { style: 'formal' })).rejects.toThrow(
+        'text cannot be empty'
+      );
+    });
+
+    it('calls sendMessage with rewrite system prompt', async () => {
+      await rewrite('hey whats up', { style: 'formal' });
+
+      expect(NativeModule.sendMessage).toHaveBeenCalledWith(
+        [{ role: 'user', content: 'hey whats up' }],
+        expect.stringContaining('writing assistant')
+      );
+    });
+
+    it('includes style instruction in prompt', async () => {
+      await rewrite('Text', { style: 'academic' });
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('academic');
+    });
+
+    it('returns empty response on unsupported platforms', async () => {
+      mockPlatformOS = 'web';
+
+      const result = await rewrite('Text', { style: 'formal' });
+
+      expect(result).toEqual({ text: '' });
+    });
+  });
+
+  describe('streamRewrite', () => {
+    it('returns promise and stop function', () => {
+      const onToken = jest.fn();
+      const result = streamRewrite('Text', onToken, { style: 'formal' });
+
+      expect(result).toHaveProperty('promise');
+      expect(result).toHaveProperty('stop');
+    });
+
+    it('rejects for empty text', () => {
+      const onToken = jest.fn();
+      const { promise } = streamRewrite('', onToken, { style: 'formal' });
+
+      expect(promise).rejects.toThrow('text cannot be empty');
+    });
+  });
+
+  describe('extractKeyPoints', () => {
+    it('throws error for empty text', async () => {
+      await expect(extractKeyPoints('')).rejects.toThrow('text cannot be empty');
+    });
+
+    it('calls sendMessage with extraction system prompt', async () => {
+      await extractKeyPoints('Some article text');
+
+      expect(NativeModule.sendMessage).toHaveBeenCalledWith(
+        [{ role: 'user', content: 'Some article text' }],
+        expect.stringContaining('analysis assistant')
+      );
+    });
+
+    it('uses default maxPoints of 5', async () => {
+      await extractKeyPoints('Text');
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('5 most important');
+    });
+
+    it('respects maxPoints option', async () => {
+      await extractKeyPoints('Text', { maxPoints: 3 });
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('3 most important');
+    });
+
+    it('returns empty response on unsupported platforms', async () => {
+      mockPlatformOS = 'web';
+
+      const result = await extractKeyPoints('Text');
+
+      expect(result).toEqual({ text: '' });
+    });
+  });
+
+  describe('streamExtractKeyPoints', () => {
+    it('returns promise and stop function', () => {
+      const onToken = jest.fn();
+      const result = streamExtractKeyPoints('Text', onToken);
+
+      expect(result).toHaveProperty('promise');
+      expect(result).toHaveProperty('stop');
+    });
+
+    it('rejects for empty text', () => {
+      const onToken = jest.fn();
+      const { promise } = streamExtractKeyPoints('', onToken);
+
+      expect(promise).rejects.toThrow('text cannot be empty');
+    });
+  });
+
+  describe('answerQuestion', () => {
+    it('throws error for empty question', async () => {
+      await expect(answerQuestion('', 'Some context')).rejects.toThrow(
+        'question cannot be empty'
+      );
+    });
+
+    it('throws error for empty context', async () => {
+      await expect(answerQuestion('What is it?', '')).rejects.toThrow(
+        'context cannot be empty'
+      );
+    });
+
+    it('calls sendMessage with QA system prompt', async () => {
+      await answerQuestion('What is the topic?', 'The topic is AI.');
+
+      expect(NativeModule.sendMessage).toHaveBeenCalledWith(
+        [{ role: 'user', content: expect.stringContaining('Context:') }],
+        expect.stringContaining('question-answering assistant')
+      );
+    });
+
+    it('includes question and context in user message', async () => {
+      await answerQuestion('What is X?', 'X is a variable.');
+
+      const userMessage = NativeModule.sendMessage.mock.calls[0][0][0].content;
+      expect(userMessage).toContain('Context:\nX is a variable.');
+      expect(userMessage).toContain('Question: What is X?');
+    });
+
+    it('uses default detail level of medium', async () => {
+      await answerQuestion('Q?', 'Context');
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('clear answer with some explanation');
+    });
+
+    it('respects detail option', async () => {
+      await answerQuestion('Q?', 'Context', { detail: 'brief' });
+
+      const systemPrompt = NativeModule.sendMessage.mock.calls[0][1];
+      expect(systemPrompt).toContain('brief, direct answer');
+    });
+
+    it('returns empty response on unsupported platforms', async () => {
+      mockPlatformOS = 'web';
+
+      const result = await answerQuestion('Q?', 'Context');
+
+      expect(result).toEqual({ text: '' });
+    });
+  });
+
+  describe('streamAnswerQuestion', () => {
+    it('returns promise and stop function', () => {
+      const onToken = jest.fn();
+      const result = streamAnswerQuestion('Q?', 'Context', onToken);
+
+      expect(result).toHaveProperty('promise');
+      expect(result).toHaveProperty('stop');
+    });
+
+    it('rejects for empty question', () => {
+      const onToken = jest.fn();
+      const { promise } = streamAnswerQuestion('', 'Context', onToken);
+
+      expect(promise).rejects.toThrow('question cannot be empty');
+    });
+
+    it('rejects for empty context', () => {
+      const onToken = jest.fn();
+      const { promise } = streamAnswerQuestion('Q?', '', onToken);
+
+      expect(promise).rejects.toThrow('context cannot be empty');
     });
   });
 });

@@ -29,7 +29,8 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 - **Native performance** — Built on Apple Foundation Models (iOS) and Google ML Kit Prompt API (Android)
 - **Multi-turn conversations** — Full conversation context support
 - **Streaming support** — Progressive token streaming for responsive UIs
-- **Simple API** — Just 3 functions: `isAvailable()`, `sendMessage()`, and `streamMessage()`
+- **Simple API** — Core functions plus prompt helpers for common tasks
+- **Prompt helpers** — Built-in `summarize()`, `translate()`, `rewrite()`, and more
 
 ## Requirements
 
@@ -170,6 +171,39 @@ const { promise, stop } = streamMessage(
 
 // Wait for completion
 await promise;
+```
+
+### Prompt Helpers
+
+Use built-in helpers for common AI tasks without crafting prompts:
+
+```tsx
+import { summarize, translate, rewrite, extractKeyPoints, answerQuestion } from 'expo-ai-kit';
+
+// Summarize text
+const summary = await summarize(longArticle, { length: 'short', style: 'bullets' });
+
+// Translate text
+const translated = await translate('Hello, world!', { to: 'Spanish' });
+
+// Rewrite in a different style
+const formal = await rewrite('hey whats up', { style: 'formal' });
+
+// Extract key points
+const points = await extractKeyPoints(article, { maxPoints: 5 });
+
+// Answer questions about content
+const answer = await answerQuestion('What is the main topic?', documentText);
+```
+
+All helpers also have streaming variants (`streamSummarize`, `streamTranslate`, etc.):
+
+```tsx
+const { promise, stop } = streamSummarize(
+  longArticle,
+  (event) => setSummary(event.accumulatedText),
+  { style: 'bullets' }
+);
 ```
 
 ### Streaming with Cancel Button
@@ -380,6 +414,97 @@ const response = await promise;
 
 ---
 
+### `summarize(text, options?)`
+
+Summarizes text using on-device AI.
+
+```typescript
+function summarize(text: string, options?: LLMSummarizeOptions): Promise<LLMResponse>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `text` | `string` | Text to summarize |
+| `options.length` | `'short' \| 'medium' \| 'long'` | Summary length (default: `'medium'`) |
+| `options.style` | `'paragraph' \| 'bullets' \| 'tldr'` | Output format (default: `'paragraph'`) |
+
+**Streaming:** `streamSummarize(text, onToken, options?)`
+
+---
+
+### `translate(text, options)`
+
+Translates text to another language.
+
+```typescript
+function translate(text: string, options: LLMTranslateOptions): Promise<LLMResponse>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `text` | `string` | Text to translate |
+| `options.to` | `string` | Target language (required) |
+| `options.from` | `string` | Source language (auto-detected if omitted) |
+| `options.tone` | `'formal' \| 'informal' \| 'neutral'` | Translation tone (default: `'neutral'`) |
+
+**Streaming:** `streamTranslate(text, onToken, options)`
+
+---
+
+### `rewrite(text, options)`
+
+Rewrites text in a different style.
+
+```typescript
+function rewrite(text: string, options: LLMRewriteOptions): Promise<LLMResponse>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `text` | `string` | Text to rewrite |
+| `options.style` | `string` | Target style (required) |
+
+**Available styles:** `'formal'`, `'casual'`, `'professional'`, `'friendly'`, `'concise'`, `'detailed'`, `'simple'`, `'academic'`
+
+**Streaming:** `streamRewrite(text, onToken, options)`
+
+---
+
+### `extractKeyPoints(text, options?)`
+
+Extracts key points from text as bullet points.
+
+```typescript
+function extractKeyPoints(text: string, options?: LLMExtractKeyPointsOptions): Promise<LLMResponse>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `text` | `string` | Text to analyze |
+| `options.maxPoints` | `number` | Maximum points to extract (default: `5`) |
+
+**Streaming:** `streamExtractKeyPoints(text, onToken, options?)`
+
+---
+
+### `answerQuestion(question, context, options?)`
+
+Answers a question based on provided context.
+
+```typescript
+function answerQuestion(question: string, context: string, options?: LLMAnswerQuestionOptions): Promise<LLMResponse>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `question` | `string` | Question to answer |
+| `context` | `string` | Context/document to base answer on |
+| `options.detail` | `'brief' \| 'medium' \| 'detailed'` | Answer detail level (default: `'medium'`) |
+
+**Streaming:** `streamAnswerQuestion(question, context, onToken, options?)`
+
+---
+
 ### Types
 
 ```typescript
@@ -417,6 +542,30 @@ type LLMStreamEvent = {
 };
 
 type LLMStreamCallback = (event: LLMStreamEvent) => void;
+
+// Prompt Helper Types
+type LLMSummarizeOptions = {
+  length?: 'short' | 'medium' | 'long';
+  style?: 'paragraph' | 'bullets' | 'tldr';
+};
+
+type LLMTranslateOptions = {
+  to: string;
+  from?: string;
+  tone?: 'formal' | 'informal' | 'neutral';
+};
+
+type LLMRewriteOptions = {
+  style: 'formal' | 'casual' | 'professional' | 'friendly' | 'concise' | 'detailed' | 'simple' | 'academic';
+};
+
+type LLMExtractKeyPointsOptions = {
+  maxPoints?: number;
+};
+
+type LLMAnswerQuestionOptions = {
+  detail?: 'brief' | 'medium' | 'detailed';
+};
 ```
 
 ## Feature Comparison
@@ -426,6 +575,7 @@ type LLMStreamCallback = (event: LLMStreamEvent) => void;
 | `isAvailable()` | ✅ | ✅ |
 | `sendMessage()` | ✅ | ✅ |
 | `streamMessage()` | ✅ | ✅ |
+| Prompt helpers | ✅ | ✅ |
 | System prompts | ✅ Native | ✅ Prepended |
 | Multi-turn context | ✅ | ✅ |
 | Cancel streaming | ✅ | ✅ |
@@ -476,7 +626,8 @@ const { text } = await sendMessage(messages, { systemPrompt: '...' });
 | Feature | Status | Priority |
 |---------|--------|----------|
 | ✅ Streaming responses | Done | - |
-| Prompt helpers (summarize, translate, etc.) | Planned | Medium |
+| ✅ Prompt helpers (summarize, translate, etc.) | Done | - |
+| Conversation memory (useChat hook) | Planned | High |
 | Web/generic fallback | Idea | Medium |
 | Configurable hyperparameters (temperature, etc.) | Idea | Low |
 
