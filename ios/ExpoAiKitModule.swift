@@ -25,24 +25,28 @@ public class ExpoAiKitModule: Module {
         fallbackSystemPrompt: String
       ) async throws -> [String: Any] in
 
-      // Extract system prompt from messages, or use fallback
-      let systemPrompt =
+      // Extract base system prompt from messages, or use fallback
+      let baseSystemPrompt =
         messages
         .first { ($0["role"] as? String) == "system" }?["content"] as? String
         ?? (fallbackSystemPrompt.isEmpty
           ? "You are a helpful, friendly assistant."
           : fallbackSystemPrompt)
 
-      // Get the last user message as the prompt
-      let userPrompt =
-        messages
-        .reversed()
-        .first { ($0["role"] as? String) == "user" }?["content"] as? String
-        ?? ""
+      // Build conversation history prompt from all non-system messages
+      // On-device models are stateless, so we must include full history in each request
+      let conversationPrompt = messages
+        .filter { ($0["role"] as? String) != "system" }
+        .map { msg -> String in
+          let role = (msg["role"] as? String ?? "user").uppercased()
+          let content = msg["content"] as? String ?? ""
+          return "\(role): \(content)"
+        }
+        .joined(separator: "\n") + "\nASSISTANT:"
 
       if #available(iOS 26.0, *) {
-        let session = LanguageModelSession(instructions: systemPrompt)
-        let response = try await session.respond(to: userPrompt)
+        let session = LanguageModelSession(instructions: baseSystemPrompt)
+        let response = try await session.respond(to: conversationPrompt)
         return ["text": response.content]
       } else {
         return ["text": "[On-device AI requires iOS 26+]"]
@@ -56,27 +60,31 @@ public class ExpoAiKitModule: Module {
         sessionId: String
       ) in
 
-      // Extract system prompt from messages, or use fallback
-      let systemPrompt =
+      // Extract base system prompt from messages, or use fallback
+      let baseSystemPrompt =
         messages
         .first { ($0["role"] as? String) == "system" }?["content"] as? String
         ?? (fallbackSystemPrompt.isEmpty
           ? "You are a helpful, friendly assistant."
           : fallbackSystemPrompt)
 
-      // Get the last user message as the prompt
-      let userPrompt =
-        messages
-        .reversed()
-        .first { ($0["role"] as? String) == "user" }?["content"] as? String
-        ?? ""
+      // Build conversation history prompt from all non-system messages
+      // On-device models are stateless, so we must include full history in each request
+      let conversationPrompt = messages
+        .filter { ($0["role"] as? String) != "system" }
+        .map { msg -> String in
+          let role = (msg["role"] as? String ?? "user").uppercased()
+          let content = msg["content"] as? String ?? ""
+          return "\(role): \(content)"
+        }
+        .joined(separator: "\n") + "\nASSISTANT:"
 
       if #available(iOS 26.0, *) {
         // Create a task for streaming that can be cancelled
         let task = Task {
           do {
-            let session = LanguageModelSession(instructions: systemPrompt)
-            let stream = session.streamResponse(to: userPrompt)
+            let session = LanguageModelSession(instructions: baseSystemPrompt)
+            let stream = session.streamResponse(to: conversationPrompt)
             var accumulatedText = ""
 
             for try await partialResponse in stream {

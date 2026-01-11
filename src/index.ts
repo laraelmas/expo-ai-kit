@@ -15,6 +15,7 @@ import {
 } from './types';
 
 export * from './types';
+export * from './memory';
 
 const DEFAULT_SYSTEM_PROMPT =
   'You are a helpful, friendly assistant. Answer the user directly and concisely.';

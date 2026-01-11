@@ -31,6 +31,7 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 - **Streaming support** — Progressive token streaming for responsive UIs
 - **Simple API** — Core functions plus prompt helpers for common tasks
 - **Prompt helpers** — Built-in `summarize()`, `translate()`, `rewrite()`, and more
+- **Chat memory** — Built-in `ChatMemoryManager` for managing conversation history
 
 ## Requirements
 
@@ -126,7 +127,38 @@ console.log(response.text);
 
 ### Multi-turn Conversations
 
-For conversations with context, pass the full conversation history:
+For conversations with context, use `ChatMemoryManager` to manage history:
+
+```tsx
+import { ChatMemoryManager, streamMessage } from 'expo-ai-kit';
+
+// Create a memory manager (handles history automatically)
+const memory = new ChatMemoryManager({
+  maxTurns: 10,
+  systemPrompt: 'You are a helpful assistant.',
+});
+
+// Add user message and get response
+memory.addUserMessage('My name is Alice.');
+const { promise } = streamMessage(
+  memory.getAllMessages(),
+  (event) => console.log(event.accumulatedText)
+);
+const response = await promise;
+
+// Store assistant response in memory
+memory.addAssistantMessage(response.text);
+
+// Continue the conversation (memory includes full history)
+memory.addUserMessage('What is my name?');
+const { promise: p2 } = streamMessage(
+  memory.getAllMessages(),
+  (event) => console.log(event.accumulatedText)
+);
+// Response: "Your name is Alice."
+```
+
+Or manually manage the conversation array:
 
 ```tsx
 import { sendMessage, type LLMMessage } from 'expo-ai-kit';
@@ -505,6 +537,99 @@ function answerQuestion(question: string, context: string, options?: LLMAnswerQu
 
 ---
 
+### `ChatMemoryManager`
+
+Manages conversation history for stateless on-device AI models. Automatically handles turn limits and provides the full message array for each request.
+
+```typescript
+class ChatMemoryManager {
+  constructor(options?: ChatMemoryOptions);
+
+  addUserMessage(content: string): void;
+  addAssistantMessage(content: string): void;
+  addMessage(message: LLMMessage): void;
+
+  getAllMessages(): LLMMessage[];
+  getMessages(): LLMMessage[];
+  getPrompt(): string;
+  getSnapshot(): ChatMemorySnapshot;
+  getTurnCount(): number;
+
+  setSystemPrompt(prompt: string | undefined): void;
+  getSystemPrompt(): string | undefined;
+  setMaxTurns(maxTurns: number): void;
+
+  clear(): void;
+  reset(): void;
+}
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `maxTurns` | `number` | Maximum conversation turns to keep (default: `10`) |
+| `systemPrompt` | `string` | System prompt to include in every request |
+
+**Why use ChatMemoryManager?**
+
+On-device models are stateless — they have no built-in memory. Each request must include the full conversation history. `ChatMemoryManager` handles this automatically:
+
+- Stores messages client-side
+- Automatically trims old messages when limit is reached
+- Preserves the system prompt (never trimmed)
+- Provides `getAllMessages()` for API calls
+
+**Example with React:**
+
+```tsx
+import { useRef } from 'react';
+import { ChatMemoryManager, streamMessage } from 'expo-ai-kit';
+
+function Chat() {
+  const memoryRef = useRef(new ChatMemoryManager({
+    maxTurns: 10,
+    systemPrompt: 'You are a helpful assistant.',
+  }));
+
+  const sendMessage = async (text: string) => {
+    memoryRef.current.addUserMessage(text);
+
+    const { promise } = streamMessage(
+      memoryRef.current.getAllMessages(),
+      (event) => setResponse(event.accumulatedText)
+    );
+
+    const response = await promise;
+    memoryRef.current.addAssistantMessage(response.text);
+  };
+
+  const clearChat = () => memoryRef.current.clear();
+}
+```
+
+---
+
+### `buildPrompt(messages)`
+
+Converts a message array to a single prompt string. Useful for debugging or custom implementations.
+
+```typescript
+function buildPrompt(messages: LLMMessage[]): string
+```
+
+**Example:**
+```tsx
+import { buildPrompt } from 'expo-ai-kit';
+
+const prompt = buildPrompt([
+  { role: 'system', content: 'You are helpful.' },
+  { role: 'user', content: 'Hi!' },
+  { role: 'assistant', content: 'Hello!' },
+]);
+// "SYSTEM: You are helpful.\nUSER: Hi!\nASSISTANT: Hello!"
+```
+
+---
+
 ### Types
 
 ```typescript
@@ -566,6 +691,21 @@ type LLMExtractKeyPointsOptions = {
 type LLMAnswerQuestionOptions = {
   detail?: 'brief' | 'medium' | 'detailed';
 };
+
+// Chat Memory Types
+type ChatMemoryOptions = {
+  /** Maximum conversation turns to keep (default: 10) */
+  maxTurns?: number;
+  /** System prompt to include in every request */
+  systemPrompt?: string;
+};
+
+type ChatMemorySnapshot = {
+  messages: LLMMessage[];
+  systemPrompt: string | undefined;
+  turnCount: number;
+  maxTurns: number;
+};
 ```
 
 ## Feature Comparison
@@ -576,6 +716,7 @@ type LLMAnswerQuestionOptions = {
 | `sendMessage()` | ✅ | ✅ |
 | `streamMessage()` | ✅ | ✅ |
 | Prompt helpers | ✅ | ✅ |
+| `ChatMemoryManager` | ✅ | ✅ |
 | System prompts | ✅ Native | ✅ Prepended |
 | Multi-turn context | ✅ | ✅ |
 | Cancel streaming | ✅ | ✅ |
@@ -627,7 +768,7 @@ const { text } = await sendMessage(messages, { systemPrompt: '...' });
 |---------|--------|----------|
 | ✅ Streaming responses | Done | - |
 | ✅ Prompt helpers (summarize, translate, etc.) | Done | - |
-| Conversation memory (useChat hook) | Planned | High |
+| ✅ Chat memory management | Done | - |
 | Web/generic fallback | Idea | Medium |
 | Configurable hyperparameters (temperature, etc.) | Idea | Low |
 
