@@ -32,13 +32,17 @@ class ExpoAiKitModule : Module() {
         ?.get("content") as? String
         ?: fallbackSystemPrompt.ifBlank { "You are a helpful, friendly assistant." }
 
-      // Get the last user message as the prompt
-      val userPrompt = messages
-        .lastOrNull { it["role"] == "user" }
-        ?.get("content") as? String
-        ?: ""
+      // Build conversation history prompt from all non-system messages
+      // On-device models are stateless, so we must include full history in each request
+      val conversationPrompt = messages
+        .filter { it["role"] != "system" }
+        .joinToString("\n") { msg ->
+          val role = (msg["role"] as? String ?: "user").uppercase()
+          val content = msg["content"] as? String ?: ""
+          "$role: $content"
+        } + "\nASSISTANT:"
 
-      val text = promptClient.generateText(userPrompt, systemPrompt)
+      val text = promptClient.generateText(conversationPrompt, systemPrompt)
       mapOf("text" to text)
     }
 
@@ -49,15 +53,19 @@ class ExpoAiKitModule : Module() {
         ?.get("content") as? String
         ?: fallbackSystemPrompt.ifBlank { "You are a helpful, friendly assistant." }
 
-      // Get the last user message as the prompt
-      val userPrompt = messages
-        .lastOrNull { it["role"] == "user" }
-        ?.get("content") as? String
-        ?: ""
+      // Build conversation history prompt from all non-system messages
+      // On-device models are stateless, so we must include full history in each request
+      val conversationPrompt = messages
+        .filter { it["role"] != "system" }
+        .joinToString("\n") { msg ->
+          val role = (msg["role"] as? String ?: "user").uppercase()
+          val content = msg["content"] as? String ?: ""
+          "$role: $content"
+        } + "\nASSISTANT:"
 
       // Launch streaming in a coroutine that can be cancelled
       val job = streamScope.launch {
-        promptClient.generateTextStream(userPrompt, systemPrompt) { token, accumulatedText, isDone ->
+        promptClient.generateTextStream(conversationPrompt, systemPrompt) { token, accumulatedText, isDone ->
           sendEvent("onStreamToken", mapOf(
             "sessionId" to sessionId,
             "token" to token,
