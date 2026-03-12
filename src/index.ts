@@ -17,6 +17,22 @@ import {
 export * from './types';
 export * from './memory';
 
+// Voice Assistant (requires optional peer deps)
+export {
+  useVoiceAssistant,
+  isVoiceAvailable,
+  VoiceAssistantError,
+  type VoiceAssistantConfig,
+  type VoiceAssistantStage,
+  type UseVoiceAssistantReturn,
+  type VoiceAssistantEvents,
+  type ModelLoadingProgress,
+  type WhisperModel,
+  type TTSModel,
+  type TTSVoice,
+  type VoiceAssistantLanguage,
+} from './voice';
+
 const DEFAULT_SYSTEM_PROMPT =
   'You are a helpful, friendly assistant. Answer the user directly and concisely.';
 

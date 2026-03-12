@@ -1,6 +1,6 @@
 {
   "name": "expo-ai-kit",
-  "version": "0.1.19",
+  "version": "0.2.0",
   "description": "Expo AI Kit module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -55,6 +55,16 @@
   "peerDependencies": {
     "expo": "*",
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-executorch": ">=0.7.2",
+    "react-native-audio-api": ">=0.11.6",
+    "expo-file-system": ">=19.0.0",
+    "expo-asset": ">=12.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react-native-executorch": { "optional": true },
+    "react-native-audio-api": { "optional": true },
+    "expo-file-system": { "optional": true },
+    "expo-asset": { "optional": true }
   }
 }
