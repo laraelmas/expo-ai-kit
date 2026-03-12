@@ -12,6 +12,10 @@ import {
   LLMRewriteOptions,
   LLMExtractKeyPointsOptions,
   LLMAnswerQuestionOptions,
+  LLMSuggestOptions,
+  LLMSuggestResponse,
+  LLMSmartReplyOptions,
+  LLMAutocompleteOptions,
 } from './types';
 
 export * from './types';
@@ -62,6 +66,14 @@ const REWRITE_STYLE_INSTRUCTIONS = {
   academic: 'Rewrite in an academic style suitable for scholarly writing.',
 } as const;
 
+const SUGGEST_TONE_INSTRUCTIONS = {
+  formal: 'Use formal, professional language.',
+  casual: 'Use casual, everyday language.',
+  professional: 'Use clear, professional language suitable for work.',
+  friendly: 'Use warm, friendly language.',
+  neutral: 'Use standard, neutral language.',
+} as const;
+
 const ANSWER_DETAIL_INSTRUCTIONS = {
   brief: 'Give a brief, direct answer in 1-2 sentences.',
   medium: 'Provide a clear answer with some explanation.',
@@ -105,6 +117,45 @@ function buildRewritePrompt(
 
 function buildExtractKeyPointsPrompt(maxPoints: number): string {
   return `You are an analysis assistant. Extract the ${maxPoints} most important key points from the provided text. Format each point as a bullet point starting with "•". Be concise and focus on the most significant information. Only output the bullet points, nothing else.`;
+}
+
+function buildSuggestPrompt(
+  count: number,
+  tone: 'formal' | 'casual' | 'professional' | 'friendly' | 'neutral',
+  context?: string
+): string {
+  const contextClause = context
+    ? ` The user is writing in this context: "${context}".`
+    : '';
+  return `You are a text suggestion assistant. Given the user's partial text, generate exactly ${count} possible continuations or completions.${contextClause} ${SUGGEST_TONE_INSTRUCTIONS[tone]} Output ONLY the suggestions, one per line, numbered like "1. suggestion here". Do not include any other text or explanation.`;
+}
+
+function buildSmartReplyPrompt(
+  count: number,
+  tone: 'formal' | 'casual' | 'professional' | 'friendly' | 'neutral',
+  persona?: string
+): string {
+  const personaClause = persona ? ` You are replying as: ${persona}.` : '';
+  return `You are a smart reply assistant. Given a conversation, generate exactly ${count} short, contextually appropriate reply suggestions that the user could send as their next message.${personaClause} ${SUGGEST_TONE_INSTRUCTIONS[tone]} Each reply should be a complete, ready-to-send message. Output ONLY the replies, one per line, numbered like "1. reply here". Do not include any other text or explanation.`;
+}
+
+function buildAutocompletePrompt(
+  count: number,
+  maxWords: number,
+  context?: string
+): string {
+  const contextClause = context
+    ? ` The user is writing about: "${context}".`
+    : '';
+  return `You are an autocomplete assistant. Given the user's partial text, generate exactly ${count} natural completions of the current sentence or phrase. Each completion should be at most ${maxWords} words and should seamlessly continue from the user's text.${contextClause} Output ONLY the completions, one per line, numbered like "1. completion here". Do not repeat the user's text. Do not include any other text or explanation.`;
+}
+
+function parseSuggestions(raw: string): { text: string }[] {
+  return raw
+    .split('\n')
+    .map((line) => line.replace(/^\d+[\.\)]\s*/, '').trim())
+    .filter((line) => line.length > 0)
+    .map((text) => ({ text }));
 }
 
 function buildAnswerQuestionPrompt(
@@ -742,5 +793,345 @@ export function streamAnswerQuestion(
   return streamMessage([{ role: 'user', content: userContent }], onToken, {
     systemPrompt,
   });
+}
+
+// ============================================================================
+// Smart Suggestions
+// ============================================================================
+
+/**
+ * Generate text suggestions based on partial input using on-device AI.
+ *
+ * Useful for text completion, writing assistance, and predictive text features.
+ *
+ * @param partialText - The text the user has typed so far
+ * @param options - Optional settings for suggestions
+ * @returns Promise with an array of suggestions
+ *
+ * @example
+ * ```ts
+ * // Basic suggestions
+ * const result = await suggest('I think we should');
+ * result.suggestions.forEach(s => console.log(s.text));
+ * // "schedule a meeting to discuss this further"
+ * // "consider an alternative approach"
+ * // "move forward with the plan"
+ * ```
+ *
+ * @example
+ * ```ts
+ * // With context and tone
+ * const result = await suggest('Dear Mr. Johnson,', {
+ *   count: 5,
+ *   context: 'writing a business email about project delays',
+ *   tone: 'formal'
+ * });
+ * ```
+ */
+export async function suggest(
+  partialText: string,
+  options?: LLMSuggestOptions
+): Promise<LLMSuggestResponse> {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return { suggestions: [], raw: '' };
+  }
+
+  if (!partialText || partialText.trim().length === 0) {
+    throw new Error('partialText cannot be empty');
+  }
+
+  const count = options?.count ?? 3;
+  const tone = options?.tone ?? 'neutral';
+  const systemPrompt = buildSuggestPrompt(count, tone, options?.context);
+
+  const response = await sendMessage(
+    [{ role: 'user', content: partialText }],
+    { systemPrompt }
+  );
+
+  return {
+    suggestions: parseSuggestions(response.text),
+    raw: response.text,
+  };
+}
+
+/**
+ * Generate text suggestions with streaming output.
+ *
+ * @param partialText - The text the user has typed so far
+ * @param onToken - Callback for each token received
+ * @param options - Optional settings for suggestions
+ * @returns Object with stop() function and promise
+ *
+ * @example
+ * ```ts
+ * const { promise } = streamSuggest(
+ *   'The best way to',
+ *   (event) => setRawSuggestions(event.accumulatedText)
+ * );
+ * const result = await promise;
+ * // Parse suggestions from result.text
+ * ```
+ */
+export function streamSuggest(
+  partialText: string,
+  onToken: LLMStreamCallback,
+  options?: LLMSuggestOptions
+): { promise: Promise<LLMResponse>; stop: () => void } {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return { promise: Promise.resolve({ text: '' }), stop: () => {} };
+  }
+
+  if (!partialText || partialText.trim().length === 0) {
+    return {
+      promise: Promise.reject(new Error('partialText cannot be empty')),
+      stop: () => {},
+    };
+  }
+
+  const count = options?.count ?? 3;
+  const tone = options?.tone ?? 'neutral';
+  const systemPrompt = buildSuggestPrompt(count, tone, options?.context);
+
+  return streamMessage([{ role: 'user', content: partialText }], onToken, {
+    systemPrompt,
+  });
+}
+
+/**
+ * Generate smart reply suggestions for a conversation using on-device AI.
+ *
+ * Analyzes the conversation history and generates contextually appropriate
+ * reply options, similar to Gmail/Messages smart replies.
+ *
+ * @param messages - The conversation history to generate replies for
+ * @param options - Optional settings for reply generation
+ * @returns Promise with an array of reply suggestions
+ *
+ * @example
+ * ```ts
+ * // Basic smart replies
+ * const result = await smartReply([
+ *   { role: 'user', content: 'Hey, are you free for lunch tomorrow?' }
+ * ]);
+ * result.suggestions.forEach(s => console.log(s.text));
+ * // "Sure, what time works for you?"
+ * // "Sorry, I already have plans."
+ * // "Let me check my schedule and get back to you."
+ * ```
+ *
+ * @example
+ * ```ts
+ * // With persona and tone
+ * const result = await smartReply(
+ *   [
+ *     { role: 'user', content: 'We need the report by Friday.' },
+ *     { role: 'assistant', content: 'I will do my best.' },
+ *     { role: 'user', content: 'Can you confirm the deadline works?' }
+ *   ],
+ *   { tone: 'professional', persona: 'project manager', count: 4 }
+ * );
+ * ```
+ */
+export async function smartReply(
+  messages: LLMMessage[],
+  options?: LLMSmartReplyOptions
+): Promise<LLMSuggestResponse> {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return { suggestions: [], raw: '' };
+  }
+
+  if (!messages || messages.length === 0) {
+    throw new Error('messages array cannot be empty');
+  }
+
+  const count = options?.count ?? 3;
+  const tone = options?.tone ?? 'neutral';
+  const systemPrompt = buildSmartReplyPrompt(count, tone, options?.persona);
+
+  const conversation = messages
+    .map((m) => `${m.role === 'user' ? 'Them' : 'Me'}: ${m.content}`)
+    .join('\n');
+
+  const response = await sendMessage(
+    [{ role: 'user', content: `Conversation:\n${conversation}\n\nGenerate ${count} reply suggestions for my next message.` }],
+    { systemPrompt }
+  );
+
+  return {
+    suggestions: parseSuggestions(response.text),
+    raw: response.text,
+  };
+}
+
+/**
+ * Generate smart reply suggestions with streaming output.
+ *
+ * @param messages - The conversation history to generate replies for
+ * @param onToken - Callback for each token received
+ * @param options - Optional settings for reply generation
+ * @returns Object with stop() function and promise
+ *
+ * @example
+ * ```ts
+ * const { promise } = streamSmartReply(
+ *   [{ role: 'user', content: 'Want to grab coffee?' }],
+ *   (event) => setRawReplies(event.accumulatedText)
+ * );
+ * const result = await promise;
+ * ```
+ */
+export function streamSmartReply(
+  messages: LLMMessage[],
+  onToken: LLMStreamCallback,
+  options?: LLMSmartReplyOptions
+): { promise: Promise<LLMResponse>; stop: () => void } {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return { promise: Promise.resolve({ text: '' }), stop: () => {} };
+  }
+
+  if (!messages || messages.length === 0) {
+    return {
+      promise: Promise.reject(new Error('messages array cannot be empty')),
+      stop: () => {},
+    };
+  }
+
+  const count = options?.count ?? 3;
+  const tone = options?.tone ?? 'neutral';
+  const systemPrompt = buildSmartReplyPrompt(count, tone, options?.persona);
+
+  const conversation = messages
+    .map((m) => `${m.role === 'user' ? 'Them' : 'Me'}: ${m.content}`)
+    .join('\n');
+
+  return streamMessage(
+    [{ role: 'user', content: `Conversation:\n${conversation}\n\nGenerate ${count} reply suggestions for my next message.` }],
+    onToken,
+    { systemPrompt }
+  );
+}
+
+/**
+ * Autocomplete the user's current text using on-device AI.
+ *
+ * Generates short, natural completions that seamlessly continue from
+ * the user's partial input. Ideal for real-time typing suggestions.
+ *
+ * @param partialText - The text the user has typed so far
+ * @param options - Optional settings for autocompletion
+ * @returns Promise with an array of completion suggestions
+ *
+ * @example
+ * ```ts
+ * // Basic autocomplete
+ * const result = await autocomplete('How do I');
+ * result.suggestions.forEach(s => console.log(s.text));
+ * // "reset my password"
+ * // "contact support"
+ * // "cancel my subscription"
+ * ```
+ *
+ * @example
+ * ```ts
+ * // With context for better suggestions
+ * const result = await autocomplete('The patient presents with', {
+ *   context: 'medical notes',
+ *   maxWords: 15,
+ *   count: 5
+ * });
+ * ```
+ */
+export async function autocomplete(
+  partialText: string,
+  options?: LLMAutocompleteOptions
+): Promise<LLMSuggestResponse> {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return { suggestions: [], raw: '' };
+  }
+
+  if (!partialText || partialText.trim().length === 0) {
+    throw new Error('partialText cannot be empty');
+  }
+
+  const count = options?.count ?? 3;
+  const maxWords = options?.maxWords ?? 10;
+  const systemPrompt = buildAutocompletePrompt(count, maxWords, options?.context);
+
+  const response = await sendMessage(
+    [{ role: 'user', content: partialText }],
+    { systemPrompt }
+  );
+
+  return {
+    suggestions: parseSuggestions(response.text),
+    raw: response.text,
+  };
+}
+
+/**
+ * Autocomplete text with streaming output.
+ *
+ * @param partialText - The text the user has typed so far
+ * @param onToken - Callback for each token received
+ * @param options - Optional settings for autocompletion
+ * @returns Object with stop() function and promise
+ *
+ * @example
+ * ```ts
+ * const { promise } = streamAutocomplete(
+ *   'I would like to',
+ *   (event) => setRawCompletions(event.accumulatedText)
+ * );
+ * const result = await promise;
+ * ```
+ */
+export function streamAutocomplete(
+  partialText: string,
+  onToken: LLMStreamCallback,
+  options?: LLMAutocompleteOptions
+): { promise: Promise<LLMResponse>; stop: () => void } {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return { promise: Promise.resolve({ text: '' }), stop: () => {} };
+  }
+
+  if (!partialText || partialText.trim().length === 0) {
+    return {
+      promise: Promise.reject(new Error('partialText cannot be empty')),
+      stop: () => {},
+    };
+  }
+
+  const count = options?.count ?? 3;
+  const maxWords = options?.maxWords ?? 10;
+  const systemPrompt = buildAutocompletePrompt(count, maxWords, options?.context);
+
+  return streamMessage([{ role: 'user', content: partialText }], onToken, {
+    systemPrompt,
+  });
+}
+
+/**
+ * Parse suggestion text from a suggest/smartReply/autocomplete response.
+ *
+ * Use this to parse the raw text from streaming responses into structured suggestions.
+ *
+ * @param raw - Raw text response from the model
+ * @returns Array of parsed suggestions
+ *
+ * @example
+ * ```ts
+ * const { promise } = streamSuggest('Hello', (event) => {
+ *   setText(event.accumulatedText);
+ * });
+ * const result = await promise;
+ * const suggestions = parseSuggestResponse(result.text);
+ * ```
+ */
+export function parseSuggestResponse(raw: string): LLMSuggestResponse {
+  return {
+    suggestions: parseSuggestions(raw),
+    raw,
+  };
 }
 

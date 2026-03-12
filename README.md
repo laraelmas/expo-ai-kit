@@ -31,6 +31,7 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 - **Streaming support** — Progressive token streaming for responsive UIs
 - **Simple API** — Core functions plus prompt helpers for common tasks
 - **Prompt helpers** — Built-in `summarize()`, `translate()`, `rewrite()`, and more
+- **Smart suggestions** — `suggest()`, `smartReply()`, and `autocomplete()` for predictive text
 - **Chat memory** — Built-in `ChatMemoryManager` for managing conversation history
 
 ## Requirements
@@ -226,6 +227,57 @@ const points = await extractKeyPoints(article, { maxPoints: 5 });
 
 // Answer questions about content
 const answer = await answerQuestion('What is the main topic?', documentText);
+```
+
+### Smart Suggestions
+
+Generate text completions, smart replies, and autocomplete suggestions — all on-device:
+
+```tsx
+import { suggest, smartReply, autocomplete } from 'expo-ai-kit';
+
+// Text suggestions — continue partial text
+const suggestions = await suggest('I think we should', {
+  count: 3,
+  tone: 'professional',
+  context: 'team meeting notes'
+});
+suggestions.suggestions.forEach(s => console.log(s.text));
+// "schedule a follow-up meeting to discuss next steps"
+// "prioritize the Q2 deliverables before moving forward"
+// "assign clear owners for each action item"
+
+// Smart replies — Gmail/iMessage-style reply suggestions
+const replies = await smartReply([
+  { role: 'user', content: 'Hey, are you free for lunch tomorrow?' }
+], { tone: 'friendly' });
+replies.suggestions.forEach(s => console.log(s.text));
+// "Sure, what time works for you?"
+// "Sorry, I already have plans tomorrow."
+// "Let me check my schedule and get back to you!"
+
+// Autocomplete — short, instant completions for search bars and inputs
+const completions = await autocomplete('How do I', {
+  context: 'cooking app',
+  maxWords: 8
+});
+completions.suggestions.forEach(s => console.log(s.text));
+// "make pasta from scratch"
+// "preheat the oven correctly"
+// "chop onions without crying"
+```
+
+All smart suggestion functions also have streaming variants (`streamSuggest`, `streamSmartReply`, `streamAutocomplete`). Use `parseSuggestResponse()` to parse streaming results:
+
+```tsx
+const { promise } = streamSuggest(
+  'The best way to',
+  (event) => setRawText(event.accumulatedText),
+  { count: 3 }
+);
+const result = await promise;
+const parsed = parseSuggestResponse(result.text);
+// parsed.suggestions = [{ text: "..." }, { text: "..." }, { text: "..." }]
 ```
 
 All helpers also have streaming variants (`streamSummarize`, `streamTranslate`, etc.):
@@ -537,6 +589,85 @@ function answerQuestion(question: string, context: string, options?: LLMAnswerQu
 
 ---
 
+### `suggest(partialText, options?)`
+
+Generates text continuation suggestions based on partial input.
+
+```typescript
+function suggest(partialText: string, options?: LLMSuggestOptions): Promise<LLMSuggestResponse>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `partialText` | `string` | The text the user has typed so far |
+| `options.count` | `number` | Number of suggestions (default: `3`) |
+| `options.context` | `string` | Optional context to inform suggestions |
+| `options.tone` | `'formal' \| 'casual' \| 'professional' \| 'friendly' \| 'neutral'` | Tone of suggestions (default: `'neutral'`) |
+
+**Returns:** `Promise<LLMSuggestResponse>` — Object with `suggestions` array and `raw` text
+
+**Streaming:** `streamSuggest(partialText, onToken, options?)`
+
+---
+
+### `smartReply(messages, options?)`
+
+Generates contextually appropriate reply suggestions for a conversation, similar to Gmail or iMessage smart replies.
+
+```typescript
+function smartReply(messages: LLMMessage[], options?: LLMSmartReplyOptions): Promise<LLMSuggestResponse>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `messages` | `LLMMessage[]` | Conversation history to generate replies for |
+| `options.count` | `number` | Number of reply suggestions (default: `3`) |
+| `options.tone` | `'formal' \| 'casual' \| 'professional' \| 'friendly' \| 'neutral'` | Reply tone (default: `'neutral'`) |
+| `options.persona` | `string` | Optional persona for the replier (e.g., `'customer support agent'`) |
+
+**Returns:** `Promise<LLMSuggestResponse>` — Object with `suggestions` array and `raw` text
+
+**Streaming:** `streamSmartReply(messages, onToken, options?)`
+
+---
+
+### `autocomplete(partialText, options?)`
+
+Generates short, natural completions for the user's current text. Ideal for search bars, form fields, and real-time typing suggestions.
+
+```typescript
+function autocomplete(partialText: string, options?: LLMAutocompleteOptions): Promise<LLMSuggestResponse>
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `partialText` | `string` | The text the user has typed so far |
+| `options.count` | `number` | Number of completions (default: `3`) |
+| `options.maxWords` | `number` | Maximum words per completion (default: `10`) |
+| `options.context` | `string` | Optional context to inform completions |
+
+**Returns:** `Promise<LLMSuggestResponse>` — Object with `suggestions` array and `raw` text
+
+**Streaming:** `streamAutocomplete(partialText, onToken, options?)`
+
+---
+
+### `parseSuggestResponse(raw)`
+
+Parses raw text from streaming suggestion responses into structured suggestions.
+
+```typescript
+function parseSuggestResponse(raw: string): LLMSuggestResponse
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `raw` | `string` | Raw text response from the model |
+
+**Returns:** `LLMSuggestResponse` — Object with `suggestions` array and `raw` text
+
+---
+
 ### `ChatMemoryManager`
 
 Manages conversation history for stateless on-device AI models. Automatically handles turn limits and provides the full message array for each request.
@@ -692,6 +823,34 @@ type LLMAnswerQuestionOptions = {
   detail?: 'brief' | 'medium' | 'detailed';
 };
 
+// Smart Suggestions Types
+type LLMSuggestOptions = {
+  count?: number;
+  context?: string;
+  tone?: 'formal' | 'casual' | 'professional' | 'friendly' | 'neutral';
+};
+
+type LLMSmartReplyOptions = {
+  count?: number;
+  tone?: 'formal' | 'casual' | 'professional' | 'friendly' | 'neutral';
+  persona?: string;
+};
+
+type LLMAutocompleteOptions = {
+  count?: number;
+  maxWords?: number;
+  context?: string;
+};
+
+type LLMSuggestion = {
+  text: string;
+};
+
+type LLMSuggestResponse = {
+  suggestions: LLMSuggestion[];
+  raw: string;
+};
+
 // Chat Memory Types
 type ChatMemoryOptions = {
   /** Maximum conversation turns to keep (default: 10) */
@@ -716,6 +875,7 @@ type ChatMemorySnapshot = {
 | `sendMessage()` | ✅ | ✅ |
 | `streamMessage()` | ✅ | ✅ |
 | Prompt helpers | ✅ | ✅ |
+| Smart suggestions | ✅ | ✅ |
 | `ChatMemoryManager` | ✅ | ✅ |
 | System prompts | ✅ Native | ✅ Prepended |
 | Multi-turn context | ✅ | ✅ |
@@ -769,6 +929,7 @@ const { text } = await sendMessage(messages, { systemPrompt: '...' });
 | ✅ Streaming responses | Done | - |
 | ✅ Prompt helpers (summarize, translate, etc.) | Done | - |
 | ✅ Chat memory management | Done | - |
+| ✅ Smart suggestions (suggest, smartReply, autocomplete) | Done | - |
 | Web/generic fallback | Idea | Medium |
 | Configurable hyperparameters (temperature, etc.) | Idea | Low |
 

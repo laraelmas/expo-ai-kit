@@ -140,6 +140,88 @@ export type LLMAnswerQuestionOptions = {
 };
 
 // ============================================================================
+// Smart Suggestions Types
+// ============================================================================
+
+/**
+ * Options for the suggest helper.
+ */
+export type LLMSuggestOptions = {
+  /**
+   * Number of suggestions to generate.
+   * @default 3
+   */
+  count?: number;
+  /**
+   * Optional context to inform the suggestions (e.g., surrounding text, app context).
+   */
+  context?: string;
+  /**
+   * Tone of the suggestions.
+   * @default 'neutral'
+   */
+  tone?: 'formal' | 'casual' | 'professional' | 'friendly' | 'neutral';
+};
+
+/**
+ * A single suggestion item.
+ */
+export type LLMSuggestion = {
+  /** The suggested text */
+  text: string;
+};
+
+/**
+ * Response from suggest/smartReply containing multiple suggestions.
+ */
+export type LLMSuggestResponse = {
+  /** Array of generated suggestions */
+  suggestions: LLMSuggestion[];
+  /** Raw response text from the model */
+  raw: string;
+};
+
+/**
+ * Options for the smartReply helper.
+ */
+export type LLMSmartReplyOptions = {
+  /**
+   * Number of reply suggestions to generate.
+   * @default 3
+   */
+  count?: number;
+  /**
+   * Tone of the reply suggestions.
+   * @default 'neutral'
+   */
+  tone?: 'formal' | 'casual' | 'professional' | 'friendly' | 'neutral';
+  /**
+   * Optional persona/context for the replier (e.g., "customer support agent", "friendly colleague").
+   */
+  persona?: string;
+};
+
+/**
+ * Options for the autocomplete helper.
+ */
+export type LLMAutocompleteOptions = {
+  /**
+   * Number of completions to generate.
+   * @default 3
+   */
+  count?: number;
+  /**
+   * Maximum length of each completion in words.
+   * @default 10
+   */
+  maxWords?: number;
+  /**
+   * Optional context to inform the completions (e.g., what the user is writing about).
+   */
+  context?: string;
+};
+
+// ============================================================================
 // Chat Memory Types
 // ============================================================================
 
