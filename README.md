@@ -32,6 +32,7 @@ On-device AI for Expo apps. Run language models locally—no API keys, no cloud,
 - **Simple API** — Core functions plus prompt helpers for common tasks
 - **Prompt helpers** — Built-in `summarize()`, `translate()`, `rewrite()`, and more
 - **Smart suggestions** — `suggest()`, `smartReply()`, and `autocomplete()` for predictive text
+- **React Hooks** — `useChat`, `useCompletion`, and `useOnDeviceAI` for plug-and-play integration
 - **Chat memory** — Built-in `ChatMemoryManager` for managing conversation history
 
 ## Requirements
@@ -289,6 +290,95 @@ const { promise, stop } = streamSummarize(
   { style: 'bullets' }
 );
 ```
+
+### React Hooks
+
+expo-ai-kit provides React hooks that handle state management, streaming, and conversation memory automatically.
+
+#### `useChat` — Full Chat Interface
+
+The easiest way to build a chat UI. Manages messages, input, streaming, and memory for you:
+
+```tsx
+import { useChat } from 'expo-ai-kit';
+
+function ChatScreen() {
+  const { messages, input, setInput, sendMessage, isStreaming, stop, clear, error } = useChat({
+    systemPrompt: 'You are a helpful assistant.',
+    maxTurns: 10,
+  });
+
+  return (
+    <View style={{ flex: 1 }}>
+      <FlatList
+        data={messages}
+        keyExtractor={(_, i) => i.toString()}
+        renderItem={({ item }) => (
+          <Text>{item.role}: {item.content}</Text>
+        )}
+      />
+      <TextInput value={input} onChangeText={setInput} />
+      {isStreaming ? (
+        <Button title="Stop" onPress={stop} />
+      ) : (
+        <Button title="Send" onPress={() => sendMessage()} />
+      )}
+      <Button title="Clear" onPress={clear} />
+    </View>
+  );
+}
+```
+
+You can also send a message programmatically:
+
+```tsx
+// Send custom text instead of current input
+sendMessage('What is the weather today?');
+```
+
+#### `useCompletion` — Single-shot Completions
+
+For one-off tasks like summarization, translation, or content generation (no conversation history):
+
+```tsx
+import { useCompletion } from 'expo-ai-kit';
+
+function Summarizer() {
+  const { completion, isLoading, complete, stop, error } = useCompletion({
+    systemPrompt: 'Summarize the given text concisely.',
+  });
+
+  return (
+    <View>
+      <Button
+        title="Summarize"
+        onPress={() => complete('Long article text here...')}
+      />
+      {isLoading && <Button title="Stop" onPress={stop} />}
+      <Text>{completion}</Text>
+    </View>
+  );
+}
+```
+
+#### `useOnDeviceAI` — Availability Check
+
+A simple hook to check if on-device AI is available, with caching across components:
+
+```tsx
+import { useOnDeviceAI } from 'expo-ai-kit';
+
+function App() {
+  const { isAvailable, isChecking } = useOnDeviceAI();
+
+  if (isChecking) return <Text>Checking AI availability...</Text>;
+  if (!isAvailable) return <Text>On-device AI not available</Text>;
+
+  return <ChatScreen />;
+}
+```
+
+---
 
 ### Streaming with Cancel Button
 
@@ -668,6 +758,80 @@ function parseSuggestResponse(raw: string): LLMSuggestResponse
 
 ---
 
+### `useChat(options?)`
+
+React hook for building chat interfaces. Manages messages, input, streaming, and conversation memory automatically.
+
+```typescript
+function useChat(options?: UseChatOptions): UseChatReturn
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `systemPrompt` | `string` | System prompt for the AI assistant |
+| `maxTurns` | `number` | Maximum conversation turns to keep in memory (default: `10`) |
+| `initialMessages` | `LLMMessage[]` | Initial messages to populate the chat |
+| `onFinish` | `(response: LLMResponse) => void` | Callback when a response is complete |
+| `onError` | `(error: Error) => void` | Callback when an error occurs |
+
+**Returns:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `messages` | `LLMMessage[]` | All messages in the conversation |
+| `input` | `string` | Current input text value |
+| `setInput` | `(input: string) => void` | Set the input text value |
+| `sendMessage` | `(text?: string) => Promise<void>` | Send the current input (or provided text) |
+| `isStreaming` | `boolean` | Whether the AI is currently streaming |
+| `stop` | `() => void` | Stop the current streaming response |
+| `clear` | `() => void` | Clear all messages and reset |
+| `error` | `Error \| null` | The most recent error, if any |
+
+---
+
+### `useCompletion(options?)`
+
+React hook for single-shot AI completions (summarization, translation, etc.).
+
+```typescript
+function useCompletion(options?: UseCompletionOptions): UseCompletionReturn
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `systemPrompt` | `string` | System prompt for the AI |
+| `onFinish` | `(response: LLMResponse) => void` | Callback when completion is done |
+| `onError` | `(error: Error) => void` | Callback when an error occurs |
+
+**Returns:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `completion` | `string` | The current completion text |
+| `isLoading` | `boolean` | Whether a completion is in progress |
+| `complete` | `(prompt: string) => Promise<string>` | Request a completion |
+| `stop` | `() => void` | Stop the current completion |
+| `error` | `Error \| null` | The most recent error, if any |
+
+---
+
+### `useOnDeviceAI()`
+
+React hook to check if on-device AI is available. Caches the result across components.
+
+```typescript
+function useOnDeviceAI(): UseOnDeviceAIReturn
+```
+
+**Returns:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `isAvailable` | `boolean` | Whether on-device AI is available |
+| `isChecking` | `boolean` | Whether the check is still in progress |
+
+---
+
 ### `ChatMemoryManager`
 
 Manages conversation history for stateless on-device AI models. Automatically handles turn limits and provides the full message array for each request.
@@ -851,6 +1015,45 @@ type LLMSuggestResponse = {
   raw: string;
 };
 
+// Hook Types
+type UseChatOptions = {
+  systemPrompt?: string;
+  maxTurns?: number;
+  initialMessages?: LLMMessage[];
+  onFinish?: (response: LLMResponse) => void;
+  onError?: (error: Error) => void;
+};
+
+type UseChatReturn = {
+  messages: LLMMessage[];
+  input: string;
+  setInput: (input: string) => void;
+  sendMessage: (text?: string) => Promise<void>;
+  isStreaming: boolean;
+  stop: () => void;
+  clear: () => void;
+  error: Error | null;
+};
+
+type UseCompletionOptions = {
+  systemPrompt?: string;
+  onFinish?: (response: LLMResponse) => void;
+  onError?: (error: Error) => void;
+};
+
+type UseCompletionReturn = {
+  completion: string;
+  isLoading: boolean;
+  complete: (prompt: string) => Promise<string>;
+  stop: () => void;
+  error: Error | null;
+};
+
+type UseOnDeviceAIReturn = {
+  isAvailable: boolean;
+  isChecking: boolean;
+};
+
 // Chat Memory Types
 type ChatMemoryOptions = {
   /** Maximum conversation turns to keep (default: 10) */
@@ -877,6 +1080,7 @@ type ChatMemorySnapshot = {
 | Prompt helpers | ✅ | ✅ |
 | Smart suggestions | ✅ | ✅ |
 | `ChatMemoryManager` | ✅ | ✅ |
+| React Hooks (`useChat`, etc.) | ✅ | ✅ |
 | System prompts | ✅ Native | ✅ Prepended |
 | Multi-turn context | ✅ | ✅ |
 | Cancel streaming | ✅ | ✅ |
@@ -930,6 +1134,7 @@ const { text } = await sendMessage(messages, { systemPrompt: '...' });
 | ✅ Prompt helpers (summarize, translate, etc.) | Done | - |
 | ✅ Chat memory management | Done | - |
 | ✅ Smart suggestions (suggest, smartReply, autocomplete) | Done | - |
+| ✅ React Hooks (useChat, useCompletion, useOnDeviceAI) | Done | - |
 | Web/generic fallback | Idea | Medium |
 | Configurable hyperparameters (temperature, etc.) | Idea | Low |
 

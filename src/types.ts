@@ -222,6 +222,86 @@ export type LLMAutocompleteOptions = {
 };
 
 // ============================================================================
+// Hook Types
+// ============================================================================
+
+/**
+ * Options for the useChat hook.
+ */
+export type UseChatOptions = {
+  /** System prompt for the AI assistant */
+  systemPrompt?: string;
+  /** Maximum conversation turns to keep in memory (default: 10) */
+  maxTurns?: number;
+  /** Initial messages to populate the chat */
+  initialMessages?: LLMMessage[];
+  /** Callback when a response is complete */
+  onFinish?: (response: LLMResponse) => void;
+  /** Callback when an error occurs */
+  onError?: (error: Error) => void;
+};
+
+/**
+ * Return type for the useChat hook.
+ */
+export type UseChatReturn = {
+  /** All messages in the conversation */
+  messages: LLMMessage[];
+  /** Current input text value */
+  input: string;
+  /** Set the input text value */
+  setInput: (input: string) => void;
+  /** Send the current input (or provided text) as a message */
+  sendMessage: (text?: string) => Promise<void>;
+  /** Whether the AI is currently streaming a response */
+  isStreaming: boolean;
+  /** Stop the current streaming response */
+  stop: () => void;
+  /** Clear all messages and reset the conversation */
+  clear: () => void;
+  /** The most recent error, if any */
+  error: Error | null;
+};
+
+/**
+ * Options for the useCompletion hook.
+ */
+export type UseCompletionOptions = {
+  /** System prompt for the AI */
+  systemPrompt?: string;
+  /** Callback when completion is done */
+  onFinish?: (response: LLMResponse) => void;
+  /** Callback when an error occurs */
+  onError?: (error: Error) => void;
+};
+
+/**
+ * Return type for the useCompletion hook.
+ */
+export type UseCompletionReturn = {
+  /** The current completion text */
+  completion: string;
+  /** Whether a completion is in progress */
+  isLoading: boolean;
+  /** Request a completion for the given prompt */
+  complete: (prompt: string) => Promise<string>;
+  /** Stop the current completion */
+  stop: () => void;
+  /** The most recent error, if any */
+  error: Error | null;
+};
+
+/**
+ * Return type for the useOnDeviceAI hook.
+ */
+export type UseOnDeviceAIReturn = {
+  /** Whether on-device AI is available */
+  isAvailable: boolean;
+  /** Whether the availability check is still in progress */
+  isChecking: boolean;
+};
+
+// ============================================================================
 // Chat Memory Types
 // ============================================================================
 
