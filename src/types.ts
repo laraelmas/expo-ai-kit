@@ -302,6 +302,111 @@ export type UseOnDeviceAIReturn = {
 };
 
 // ============================================================================
+// Model Types
+// ============================================================================
+
+/**
+ * A built-in model provided by the OS (e.g. Apple Foundation Models, ML Kit).
+ * These are always available on supported devices -- no download needed.
+ */
+export type BuiltInModel = {
+  /** Unique model identifier (e.g. 'apple-fm', 'mlkit') */
+  id: string;
+  /** Human-readable model name */
+  name: string;
+  /** Whether this model is available on the current device/OS */
+  available: boolean;
+  /** Platform this model is associated with */
+  platform: 'ios' | 'android';
+  /** Maximum context window in tokens */
+  contextWindow: number;
+};
+
+/**
+ * A downloadable model that the user manages (download, load, delete).
+ * These require explicit download before use.
+ */
+export type DownloadableModel = {
+  /** Unique model identifier (e.g. 'gemma-e2b', 'gemma-e4b') */
+  id: string;
+  /** Human-readable model name */
+  name: string;
+  /** Parameter count label (e.g. '2.3B') */
+  parameterCount: string;
+  /** Download file size in bytes */
+  sizeBytes: number;
+  /** Maximum context window in tokens */
+  contextWindow: number;
+  /** Minimum device RAM in bytes required to run */
+  minRamBytes: number;
+  /** Current lifecycle status */
+  status: DownloadableModelStatus;
+};
+
+/**
+ * Lifecycle status of a downloadable model.
+ *
+ * - 'not-downloaded': Model file is not on disk
+ * - 'downloading': Model file is being downloaded
+ * - 'loading': File is on disk, model is being loaded into memory for inference
+ * - 'ready': Model is loaded in memory and ready for inference
+ */
+export type DownloadableModelStatus =
+  | 'not-downloaded'
+  | 'downloading'
+  | 'loading'
+  | 'ready';
+
+/**
+ * Error codes for model-related operations.
+ */
+export type ModelErrorCode =
+  | 'MODEL_NOT_FOUND'
+  | 'MODEL_NOT_DOWNLOADED'
+  | 'DOWNLOAD_FAILED'
+  | 'DOWNLOAD_CORRUPT'
+  | 'DOWNLOAD_STORAGE_FULL'
+  | 'INFERENCE_OOM'
+  | 'INFERENCE_FAILED'
+  | 'MODEL_LOAD_FAILED'
+  | 'DEVICE_NOT_SUPPORTED';
+
+/**
+ * Structured error for model operations.
+ */
+export class ModelError extends Error {
+  code: ModelErrorCode;
+  modelId: string;
+
+  constructor(code: ModelErrorCode, modelId: string, message?: string) {
+    super(message ?? `${code}: ${modelId}`);
+    this.name = 'ModelError';
+    this.code = code;
+    this.modelId = modelId;
+  }
+}
+
+/**
+ * Event payload for model download progress.
+ */
+export type ModelDownloadProgressEvent = {
+  /** Model being downloaded */
+  modelId: string;
+  /** Download progress from 0 to 1 */
+  progress: number;
+};
+
+/**
+ * Event payload for model state changes.
+ */
+export type ModelStateChangeEvent = {
+  /** Model whose state changed */
+  modelId: string;
+  /** New status */
+  status: DownloadableModelStatus;
+};
+
+// ============================================================================
 // Chat Memory Types
 // ============================================================================
 
@@ -319,6 +424,13 @@ export type ChatMemoryOptions = {
    * Optional system prompt to prepend to every generated prompt.
    */
   systemPrompt?: string;
+  /**
+   * Maximum context window in tokens. When set, trimHistory will also
+   * trim messages that exceed this token budget (in addition to maxTurns).
+   * Whichever limit is hit first triggers trimming.
+   * @default Infinity (no token-based trimming)
+   */
+  contextWindow?: number;
 };
 
 /**

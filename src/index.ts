@@ -16,11 +16,16 @@ import {
   LLMSuggestResponse,
   LLMSmartReplyOptions,
   LLMAutocompleteOptions,
+  BuiltInModel,
+  DownloadableModel,
+  ModelError,
 } from './types';
+import { MODEL_REGISTRY, getRegistryEntry } from './models';
 
 export * from './types';
 export * from './memory';
 export * from './hooks';
+export * from './models';
 
 const DEFAULT_SYSTEM_PROMPT =
   'You are a helpful, friendly assistant. Answer the user directly and concisely.';
@@ -1134,5 +1139,171 @@ export function parseSuggestResponse(raw: string): LLMSuggestResponse {
     suggestions: parseSuggestions(raw),
     raw,
   };
+}
+
+// ============================================================================
+// Model Management API
+// ============================================================================
+
+/**
+ * Get all built-in models available on the current platform.
+ *
+ * Built-in models are provided by the OS and require no download.
+ * On iOS this returns Apple Foundation Models; on Android, ML Kit.
+ *
+ * @returns Array of built-in models with availability status
+ */
+export async function getBuiltInModels(): Promise<BuiltInModel[]> {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return [];
+  }
+  return ExpoAiKitModule.getBuiltInModels();
+}
+
+/**
+ * Get all downloadable models from the registry, enriched with on-device status.
+ *
+ * Reads from the hardcoded MODEL_REGISTRY and queries the native layer
+ * for the current download/load status of each model.
+ *
+ * @returns Array of downloadable models with their current status
+ */
+export async function getDownloadableModels(): Promise<DownloadableModel[]> {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return [];
+  }
+
+  const platformModels = MODEL_REGISTRY.filter((entry) =>
+    entry.supportedPlatforms.includes(Platform.OS as 'ios' | 'android')
+  );
+
+  return platformModels.map((entry) => {
+    const status = ExpoAiKitModule.getDownloadableModelStatus(entry.id);
+    return {
+      id: entry.id,
+      name: entry.name,
+      parameterCount: entry.parameterCount,
+      sizeBytes: entry.sizeBytes,
+      contextWindow: entry.contextWindow,
+      minRamBytes: entry.minRamBytes,
+      status,
+    };
+  });
+}
+
+/**
+ * Download a model to the device.
+ *
+ * Looks up the model in the registry, validates platform support and
+ * device requirements, then initiates the download with integrity verification.
+ *
+ * @param modelId - ID of the model to download (e.g. 'gemma-e2b')
+ * @param options - Optional download configuration
+ * @param options.onProgress - Callback with download progress (0-1)
+ * @throws {ModelError} MODEL_NOT_FOUND if modelId is not in the registry
+ * @throws {ModelError} DEVICE_NOT_SUPPORTED if platform is not supported
+ * @throws {ModelError} DOWNLOAD_FAILED on network error
+ * @throws {ModelError} DOWNLOAD_STORAGE_FULL if insufficient disk space
+ * @throws {ModelError} DOWNLOAD_CORRUPT if SHA256 hash doesn't match
+ */
+export async function downloadModel(
+  modelId: string,
+  options?: { onProgress?: (progress: number) => void }
+): Promise<void> {
+  const entry = getRegistryEntry(modelId);
+  if (!entry) {
+    throw new ModelError('MODEL_NOT_FOUND', modelId);
+  }
+
+  if (!entry.supportedPlatforms.includes(Platform.OS as 'ios' | 'android')) {
+    throw new ModelError(
+      'DEVICE_NOT_SUPPORTED',
+      modelId,
+      `Model ${modelId} is not supported on ${Platform.OS}`
+    );
+  }
+
+  let subscription: ReturnType<typeof ExpoAiKitModule.addListener> | undefined;
+  if (options?.onProgress) {
+    subscription = ExpoAiKitModule.addListener(
+      'onDownloadProgress',
+      (event) => {
+        if (event.modelId === modelId) {
+          options.onProgress!(event.progress);
+        }
+      }
+    );
+  }
+
+  try {
+    await ExpoAiKitModule.downloadModel(
+      modelId,
+      entry.downloadUrl,
+      entry.sha256
+    );
+  } finally {
+    subscription?.remove();
+  }
+}
+
+/**
+ * Delete a downloaded model from the device.
+ *
+ * If the model is currently loaded, it will be unloaded first.
+ *
+ * @param modelId - ID of the model to delete
+ * @throws {ModelError} MODEL_NOT_FOUND if modelId is not in the registry
+ */
+export async function deleteModel(modelId: string): Promise<void> {
+  const entry = getRegistryEntry(modelId);
+  if (!entry) {
+    throw new ModelError('MODEL_NOT_FOUND', modelId);
+  }
+
+  await ExpoAiKitModule.deleteModel(modelId);
+}
+
+/**
+ * Set the active model for inference.
+ *
+ * This is the sole gatekeeper for model validity. If setModel succeeds,
+ * the model is loaded and ready -- sendMessage never needs its own check.
+ *
+ * For downloadable models, this loads the model into memory (status
+ * transitions: loading -> ready). Only one downloadable model can be
+ * loaded at a time; the previous one is auto-unloaded.
+ *
+ * For built-in models, this simply switches the active backend.
+ *
+ * If setModel was never called, sendMessage uses the platform built-in
+ * model (today's behavior, no error).
+ *
+ * @param modelId - ID of the model to activate (e.g. 'gemma-e2b', 'apple-fm', 'mlkit')
+ * @throws {ModelError} MODEL_NOT_FOUND if modelId is invalid
+ * @throws {ModelError} MODEL_NOT_DOWNLOADED if the downloadable model file is not on disk
+ * @throws {ModelError} MODEL_LOAD_FAILED if loading into memory fails
+ * @throws {ModelError} INFERENCE_OOM if device can't fit model in memory
+ */
+export async function setModel(modelId: string): Promise<void> {
+  await ExpoAiKitModule.setModel(modelId);
+}
+
+/**
+ * Get the ID of the currently active model.
+ *
+ * @returns The active model ID (e.g. 'apple-fm', 'mlkit', 'gemma-e2b')
+ */
+export function getActiveModel(): string {
+  return ExpoAiKitModule.getActiveModel();
+}
+
+/**
+ * Explicitly unload the current downloadable model from memory.
+ *
+ * Frees memory and reverts to the platform built-in model.
+ * No-op if no downloadable model is currently loaded.
+ */
+export async function unloadModel(): Promise<void> {
+  await ExpoAiKitModule.unloadModel();
 }
 

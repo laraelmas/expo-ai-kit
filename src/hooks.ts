@@ -1,6 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { isAvailable, streamMessage } from './index';
+import {
+  isAvailable,
+  streamMessage,
+  getBuiltInModels as getBuiltInModelsApi,
+  getDownloadableModels as getDownloadableModelsApi,
+  downloadModel as downloadModelApi,
+  deleteModel as deleteModelApi,
+} from './index';
 import { ChatMemoryManager } from './memory';
+import ExpoAiKitModule from './ExpoAiKitModule';
 import type {
   LLMMessage,
   UseChatOptions,
@@ -8,6 +16,10 @@ import type {
   UseCompletionOptions,
   UseCompletionReturn,
   UseOnDeviceAIReturn,
+  BuiltInModel,
+  DownloadableModel,
+  DownloadableModelStatus,
+  ModelError,
 } from './types';
 
 // Cache availability result across all hook instances
@@ -328,4 +340,163 @@ export function useCompletion(options: UseCompletionOptions = {}): UseCompletion
     stop,
     error,
   };
+}
+
+/**
+ * React hook for managing a downloadable model's lifecycle.
+ *
+ * Tracks download status, progress, and provides download/delete controls.
+ *
+ * @param modelId - The downloadable model ID (e.g. 'gemma-e2b')
+ * @returns Model status, progress, and control functions
+ *
+ * @example
+ * ```tsx
+ * function ModelManager() {
+ *   const { status, progress, download, delete: remove, error } = useModel('gemma-e2b');
+ *
+ *   if (status === 'not-downloaded') {
+ *     return <Button title="Download" onPress={download} />;
+ *   }
+ *   if (status === 'downloading') {
+ *     return <Text>Downloading: {Math.round(progress * 100)}%</Text>;
+ *   }
+ *   if (status === 'loading') {
+ *     return <Text>Loading model...</Text>;
+ *   }
+ *   return <Text>Model ready!</Text>;
+ * }
+ * ```
+ */
+export function useModel(modelId: string): {
+  status: DownloadableModelStatus;
+  progress: number;
+  download: () => Promise<void>;
+  delete: () => Promise<void>;
+  error: ModelError | null;
+} {
+  const [status, setStatus] = useState<DownloadableModelStatus>('not-downloaded');
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<ModelError | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    // Query initial status
+    try {
+      const initialStatus = ExpoAiKitModule.getDownloadableModelStatus(modelId);
+      setStatus(initialStatus);
+    } catch {
+      // Model not found or native module not ready
+    }
+
+    // Listen for state changes
+    const stateSubscription = ExpoAiKitModule.addListener(
+      'onModelStateChange',
+      (event) => {
+        if (event.modelId === modelId && mountedRef.current) {
+          setStatus(event.status);
+        }
+      }
+    );
+
+    // Listen for download progress
+    const progressSubscription = ExpoAiKitModule.addListener(
+      'onDownloadProgress',
+      (event) => {
+        if (event.modelId === modelId && mountedRef.current) {
+          setProgress(event.progress);
+        }
+      }
+    );
+
+    return () => {
+      mountedRef.current = false;
+      stateSubscription.remove();
+      progressSubscription.remove();
+    };
+  }, [modelId]);
+
+  const download = useCallback(async () => {
+    setError(null);
+    setProgress(0);
+    try {
+      await downloadModelApi(modelId, {
+        onProgress: (p) => {
+          if (mountedRef.current) setProgress(p);
+        },
+      });
+    } catch (err) {
+      if (mountedRef.current) {
+        setError(err as ModelError);
+      }
+    }
+  }, [modelId]);
+
+  const del = useCallback(async () => {
+    setError(null);
+    try {
+      await deleteModelApi(modelId);
+      if (mountedRef.current) {
+        setStatus('not-downloaded');
+        setProgress(0);
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        setError(err as ModelError);
+      }
+    }
+  }, [modelId]);
+
+  return { status, progress, download, delete: del, error };
+}
+
+/**
+ * React hook to discover all available models (built-in and downloadable).
+ *
+ * @returns Built-in models, downloadable models, and loading state
+ *
+ * @example
+ * ```tsx
+ * function ModelPicker() {
+ *   const { builtIn, downloadable, isLoading } = useAvailableModels();
+ *
+ *   if (isLoading) return <Text>Loading models...</Text>;
+ *
+ *   return (
+ *     <View>
+ *       <Text>Built-in: {builtIn.map(m => m.name).join(', ')}</Text>
+ *       <Text>Downloadable: {downloadable.map(m => m.name).join(', ')}</Text>
+ *     </View>
+ *   );
+ * }
+ * ```
+ */
+export function useAvailableModels(): {
+  builtIn: BuiltInModel[];
+  downloadable: DownloadableModel[];
+  isLoading: boolean;
+} {
+  const [builtIn, setBuiltIn] = useState<BuiltInModel[]>([]);
+  const [downloadable, setDownloadable] = useState<DownloadableModel[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    Promise.all([getBuiltInModelsApi(), getDownloadableModelsApi()]).then(
+      ([bi, dl]) => {
+        if (mounted) {
+          setBuiltIn(bi);
+          setDownloadable(dl);
+          setIsLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return { builtIn, downloadable, isLoading };
 }

@@ -123,16 +123,21 @@ export class ChatMemoryManager {
   // Maximum conversation turns to retain
   private maxTurns: number;
 
+  // Maximum context window in tokens. Infinity means no token-based trimming.
+  private contextWindow: number;
+
   /**
    * Create a new ChatMemoryManager.
    *
    * @param options - Configuration options
    * @param options.maxTurns - Max turns to keep (default: 10). A turn = 1 user + 1 assistant message.
    * @param options.systemPrompt - Optional system prompt to include in every prompt.
+   * @param options.contextWindow - Max tokens for context (default: Infinity). Trims oldest messages when exceeded.
    */
   constructor(options: ChatMemoryOptions = {}) {
     this.maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
     this.systemPrompt = options.systemPrompt;
+    this.contextWindow = options.contextWindow ?? Infinity;
   }
 
   /**
@@ -278,6 +283,26 @@ export class ChatMemoryManager {
   }
 
   /**
+   * Update the context window (max tokens).
+   *
+   * Called internally when setModel() switches to a model with a different
+   * context window. Can also be called manually.
+   *
+   * @param tokens - Maximum token budget. Use Infinity to disable token-based trimming.
+   */
+  setContextWindow(tokens: number): void {
+    this.contextWindow = tokens;
+    this.trimHistory();
+  }
+
+  /**
+   * Get the current context window setting.
+   */
+  getContextWindow(): number {
+    return this.contextWindow;
+  }
+
+  /**
    * Clear all conversation messages but keep the system prompt.
    *
    * Use this to start a new conversation with the same assistant persona.
@@ -297,18 +322,27 @@ export class ChatMemoryManager {
   }
 
   /**
-   * Trim conversation history to stay within the turn limit.
+   * Trim conversation history to stay within limits.
    *
    * This preserves the most recent messages while removing older ones.
    * The system prompt is never affected by trimming.
    *
    * Trimming strategy:
-   * - Count turns (user messages)
-   * - If over limit, remove oldest user+assistant pairs
-   * - Always keep complete pairs to maintain conversation coherence
+   * 1. Trim by turn count (maxTurns) -- remove oldest user+assistant pairs
+   * 2. Trim by token budget (contextWindow) -- remove oldest messages until under budget
+   * Whichever limit is hit first triggers trimming.
    */
   private trimHistory(): void {
-    // Count current turns (user messages)
+    // Step 1: Trim by turn count
+    this.trimByTurns();
+
+    // Step 2: Trim by context window (if set)
+    if (this.contextWindow !== Infinity) {
+      this.trimByTokens();
+    }
+  }
+
+  private trimByTurns(): void {
     const userMessageIndices: number[] = [];
     this.messages.forEach((msg, idx) => {
       if (msg.role === 'user') {
@@ -319,15 +353,11 @@ export class ChatMemoryManager {
     const turnsToRemove = userMessageIndices.length - this.maxTurns;
 
     if (turnsToRemove <= 0) {
-      return; // Within limits, no trimming needed
+      return;
     }
 
-    // Find the index after the last turn we need to remove
-    // This removes complete turns (user + any following assistant messages)
     const lastTurnToRemoveIdx = userMessageIndices[turnsToRemove - 1];
 
-    // Find where to cut: after the assistant response following this user message
-    // (or at the next user message if no assistant response)
     let cutIndex = lastTurnToRemoveIdx + 1;
     while (
       cutIndex < this.messages.length &&
@@ -336,7 +366,29 @@ export class ChatMemoryManager {
       cutIndex++;
     }
 
-    // Remove the oldest messages
     this.messages = this.messages.slice(cutIndex);
+  }
+
+  private trimByTokens(): void {
+    // TODO: chars/4 is a rough heuristic. Different models use different
+    // tokenizers (SentencePiece for Gemma, BPE for others). If precision
+    // matters, consider per-model tokenizer config. For now this is
+    // conservative enough for trimming.
+    const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+
+    const systemTokens = this.systemPrompt
+      ? estimateTokens(this.systemPrompt)
+      : 0;
+
+    let totalTokens = systemTokens;
+    for (const msg of this.messages) {
+      totalTokens += estimateTokens(msg.content);
+    }
+
+    // Remove oldest messages until we're under budget
+    while (totalTokens > this.contextWindow && this.messages.length > 0) {
+      const removed = this.messages.shift()!;
+      totalTokens -= estimateTokens(removed.content);
+    }
   }
 }
