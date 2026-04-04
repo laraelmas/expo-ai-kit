@@ -44,5 +44,5 @@ android {
 
 dependencies {
   implementation "com.google.mlkit:genai-prompt:1.0.0-beta2"
-  implementation "com.google.ai.edge.litertlm:litertlm-android:+"
+  implementation "com.google.ai.edge.litertlm:litertlm-android:0.8.0"
 }

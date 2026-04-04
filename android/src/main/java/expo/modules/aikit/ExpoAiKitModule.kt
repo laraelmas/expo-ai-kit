@@ -208,7 +208,7 @@ class ExpoAiKitModule : Module() {
       activeModelId
     }
 
-    AsyncFunction("unloadModel") Coroutine {
+    AsyncFunction("unloadModel") Coroutine { ->
       if (activeModelId != "mlkit" && gemmaClient.isModelLoaded()) {
         val previousId = activeModelId
         gemmaClient.unloadModel()
