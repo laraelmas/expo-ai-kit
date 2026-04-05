@@ -49,18 +49,26 @@ class ExpoAiKitModule : Module() {
 
       // Build conversation history prompt from all non-system messages
       // On-device models are stateless, so we must include full history in each request
-      val conversationPrompt = messages
-        .filter { it["role"] != "system" }
-        .joinToString("\n") { msg ->
-          val role = (msg["role"] as? String ?: "user").uppercase()
-          val content = msg["content"] as? String ?: ""
-          "$role: $content"
-        } + "\nASSISTANT:"
+      val nonSystemMessages = messages.filter { it["role"] != "system" }
 
       // Route to active model
       val text = if (activeModelId == "mlkit") {
+        // ML Kit: use role-prefixed format since it has no conversation API
+        val conversationPrompt = nonSystemMessages
+          .joinToString("\n") { msg ->
+            val role = (msg["role"] as? String ?: "user").uppercase()
+            val content = msg["content"] as? String ?: ""
+            "$role: $content"
+          } + "\nASSISTANT:"
         promptClient.generateText(conversationPrompt, systemPrompt)
       } else {
+        // Gemma/LiteRT-LM: pass raw content — the Conversation API handles
+        // turn formatting internally. Adding "USER:"/"ASSISTANT:" markers
+        // causes double-formatting and garbled output.
+        val conversationPrompt = nonSystemMessages
+          .joinToString("\n") { msg ->
+            msg["content"] as? String ?: ""
+          }
         gemmaClient.generateText(conversationPrompt, systemPrompt)
       }
       mapOf("text" to text)
@@ -73,25 +81,15 @@ class ExpoAiKitModule : Module() {
         ?.get("content") as? String
         ?: fallbackSystemPrompt.ifBlank { "You are a helpful, friendly assistant." }
 
-      // Build conversation history prompt from all non-system messages
-      // On-device models are stateless, so we must include full history in each request
-      val conversationPrompt = messages
-        .filter { it["role"] != "system" }
-        .joinToString("\n") { msg ->
-          val role = (msg["role"] as? String ?: "user").uppercase()
-          val content = msg["content"] as? String ?: ""
-          "$role: $content"
-        } + "\nASSISTANT:"
+      val nonSystemMessages = messages.filter { it["role"] != "system" }
 
       // Launch streaming in a coroutine that can be cancelled
       val job = streamScope.launch {
-        val streamAccumulator = StringBuilder()
-        val streamCallback = { token: String, _: String, isDone: Boolean ->
-          streamAccumulator.append(token)
+        val streamCallback = { token: String, accumulatedText: String, isDone: Boolean ->
           sendEvent("onStreamToken", mapOf(
             "sessionId" to sessionId,
             "token" to token,
-            "accumulatedText" to streamAccumulator.toString(),
+            "accumulatedText" to accumulatedText,
             "isDone" to isDone
           ))
 
@@ -102,8 +100,20 @@ class ExpoAiKitModule : Module() {
 
         // Route to active model
         if (activeModelId == "mlkit") {
+          // ML Kit: use role-prefixed format since it has no conversation API
+          val conversationPrompt = nonSystemMessages
+            .joinToString("\n") { msg ->
+              val role = (msg["role"] as? String ?: "user").uppercase()
+              val content = msg["content"] as? String ?: ""
+              "$role: $content"
+            } + "\nASSISTANT:"
           promptClient.generateTextStream(conversationPrompt, systemPrompt, streamCallback)
         } else {
+          // Gemma/LiteRT-LM: pass raw content — Conversation API handles turn formatting
+          val conversationPrompt = nonSystemMessages
+            .joinToString("\n") { msg ->
+              msg["content"] as? String ?: ""
+            }
           gemmaClient.generateTextStream(conversationPrompt, systemPrompt, streamCallback)
         }
       }

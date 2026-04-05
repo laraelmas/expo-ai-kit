@@ -219,22 +219,37 @@ class GemmaInferenceClient(private val context: Context) {
     try {
       withContext(Dispatchers.IO) {
         suspendCancellableCoroutine<Unit> { continuation ->
+          val accumulatedBuilder = StringBuilder()
           var previousText = ""
           conv.sendMessageAsync(
             Contents.of(fullPrompt),
             object : MessageCallback {
               override fun onMessage(message: Message) {
-                val accumulated = message.toString()
-                val token = if (accumulated.length > previousText.length) {
-                  accumulated.substring(previousText.length)
+                val messageText = message.toString()
+
+                // LiteRT-LM may deliver accumulated text or delta tokens depending
+                // on the version. Detect which by checking if messageText extends
+                // what we've seen before.
+                val token: String
+                if (messageText.startsWith(previousText) && messageText.length >= previousText.length) {
+                  // Accumulated text — extract delta
+                  token = messageText.substring(previousText.length)
+                  previousText = messageText
+                  accumulatedBuilder.clear()
+                  accumulatedBuilder.append(messageText)
                 } else {
-                  ""
+                  // Delta token — accumulate ourselves
+                  token = messageText
+                  accumulatedBuilder.append(messageText)
+                  previousText = accumulatedBuilder.toString()
                 }
-                previousText = accumulated
+
+                val accumulated = accumulatedBuilder.toString()
                 onChunk(token, accumulated, false)
               }
               override fun onDone() {
-                onChunk("", previousText, true)
+                val finalText = accumulatedBuilder.toString()
+                onChunk("", finalText, true)
                 continuation.resume(Unit)
               }
               override fun onError(throwable: Throwable) {
