@@ -38,7 +38,7 @@ export interface ExpoAiKitNativeModule {
   // Model selection & memory management
   // setModel is async: switching to a downloadable model loads it into memory.
   // Auto-unloads the previous downloadable model (only one loaded at a time).
-  setModel(modelId: string): Promise<void>;
+  setModel(modelId: string, minRamBytes: number, backend: string): Promise<void>;
   getActiveModel(): string;
   // Explicitly free memory from the loaded downloadable model.
   // Reverts to the platform built-in model.

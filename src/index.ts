@@ -19,6 +19,7 @@ import {
   BuiltInModel,
   DownloadableModel,
   ModelError,
+  SetModelOptions,
 } from './types';
 import { MODEL_REGISTRY, getRegistryEntry } from './models';
 
@@ -1301,13 +1302,18 @@ export async function deleteModel(modelId: string): Promise<void> {
  * model (today's behavior, no error).
  *
  * @param modelId - ID of the model to activate (e.g. 'gemma-e2b', 'apple-fm', 'mlkit')
+ * @param options - Optional configuration for model loading
+ * @param options.backend - Hardware backend: 'auto' (default, GPU with CPU fallback), 'gpu', or 'cpu'
  * @throws {ModelError} MODEL_NOT_FOUND if modelId is invalid
  * @throws {ModelError} MODEL_NOT_DOWNLOADED if the downloadable model file is not on disk
  * @throws {ModelError} MODEL_LOAD_FAILED if loading into memory fails
  * @throws {ModelError} INFERENCE_OOM if device can't fit model in memory
  */
-export async function setModel(modelId: string): Promise<void> {
-  await ExpoAiKitModule.setModel(modelId);
+export async function setModel(modelId: string, options?: SetModelOptions): Promise<void> {
+  const entry = getRegistryEntry(modelId);
+  const minRamBytes = entry?.minRamBytes ?? 0;
+  const backend = options?.backend ?? 'auto';
+  await ExpoAiKitModule.setModel(modelId, minRamBytes, backend);
 }
 
 /**

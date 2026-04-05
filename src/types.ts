@@ -1,6 +1,23 @@
 /**
  * Role in a conversation message.
  */
+/**
+ * Hardware backend for on-device model inference.
+ *
+ * - 'auto': Try GPU first, fall back to CPU (default)
+ * - 'gpu': Force GPU — faster (~40-50 tok/s) but needs more memory
+ * - 'cpu': Force CPU — slower (~2-5 tok/s) but works on low-RAM devices
+ */
+export type InferenceBackend = 'auto' | 'gpu' | 'cpu';
+
+/**
+ * Options for setModel.
+ */
+export type SetModelOptions = {
+  /** Hardware backend to use for inference. Defaults to 'auto'. */
+  backend?: InferenceBackend;
+};
+
 export type LLMRole = 'system' | 'user' | 'assistant';
 
 /**

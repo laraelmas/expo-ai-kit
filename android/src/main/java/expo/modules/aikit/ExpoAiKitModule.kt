@@ -156,7 +156,7 @@ class ExpoAiKitModule : Module() {
     // Model selection & memory management
     // ==================================================================
 
-    AsyncFunction("setModel") Coroutine { modelId: String ->
+    AsyncFunction("setModel") Coroutine { modelId: String, minRamBytes: Long, backend: String ->
       if (modelId == "mlkit") {
         // Switch to built-in: unload any Gemma model
         if (gemmaClient.isModelLoaded()) {
@@ -186,7 +186,7 @@ class ExpoAiKitModule : Module() {
 
       try {
         val modelPath = gemmaClient.getModelFilePath(modelId)
-        gemmaClient.loadModel(modelId, modelPath)
+        gemmaClient.loadModel(modelId, modelPath, minRamBytes, backend)
         activeModelId = modelId
 
         // Emit ready state
