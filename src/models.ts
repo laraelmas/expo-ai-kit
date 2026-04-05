@@ -48,7 +48,7 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
     // Conservative limit for 4GB RAM devices.
     // TODO: Benchmark during Phase 2 testing.
     contextWindow: 8_000,
-    minRamBytes: 4_000_000_000, // 4GB
+    minRamBytes: 2_000_000_000, // 2GB — LiteRT-LM memory-maps weights, actual RSS ~1.5GB
     supportedPlatforms: ['android'], // iOS waiting for LiteRT-LM Swift APIs
   },
   {
@@ -60,10 +60,8 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
       'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm',
     sha256: '', // TODO: Fill with actual hash once model file is verified
     sizeBytes: 3_650_000_000, // ~3.65GB
-    // Conservative limit for 6GB RAM devices.
-    // TODO: Benchmark during Phase 2 testing.
     contextWindow: 16_000,
-    minRamBytes: 6_000_000_000, // 6GB
+    minRamBytes: 3_000_000_000, // 3GB — LiteRT-LM memory-maps weights
     supportedPlatforms: ['android'], // iOS waiting for LiteRT-LM Swift APIs
   },
 ];
