@@ -85,11 +85,13 @@ class ExpoAiKitModule : Module() {
 
       // Launch streaming in a coroutine that can be cancelled
       val job = streamScope.launch {
-        val streamCallback = { token: String, accumulatedText: String, isDone: Boolean ->
+        val streamAccumulator = StringBuilder()
+        val streamCallback = { token: String, _: String, isDone: Boolean ->
+          streamAccumulator.append(token)
           sendEvent("onStreamToken", mapOf(
             "sessionId" to sessionId,
             "token" to token,
-            "accumulatedText" to accumulatedText,
+            "accumulatedText" to streamAccumulator.toString(),
             "isDone" to isDone
           ))
 
